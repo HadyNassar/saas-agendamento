@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: saas
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/saas
+    username: postgres
+    password: 6371
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
