@@ -1,120 +1,105 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-
-	<!-- SPRING BOOT PARENT -->
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.5</version>
+		<version>3.5.14</version>
 		<relativePath/>
 	</parent>
-
-	<!-- IDENTIDADE DO PROJETO -->
 	<groupId>com.hady.saas</groupId>
 	<artifactId>saas</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>saas</name>
-	<description>Projeto SaaS com autenticação JWT</description>
+	<name>agendara</name>
+	<description>Agendara - Sistema SaaS de agendamento para estabelecimentos de beleza</description>
 	<packaging>jar</packaging>
-
-	<!-- PROPRIEDADES -->
 	<properties>
 		<java.version>21</java.version>
+		<!--  Força versão do Flyway compatível com PostgreSQL 18  -->
+		<flyway.version>11.8.2</flyway.version>
 	</properties>
-
-	<!-- DEPENDÊNCIAS -->
 	<dependencies>
-
-		<!-- WEB -->
+		<!--  WEB  -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-
-		<!-- JPA -->
+		<!--  JPA  -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
-
-		<!-- POSTGRES -->
+		<!--  POSTGRES  -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
-
-		<!-- SECURITY -->
+		<!--  SECURITY  -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
-
-		<!-- FLYWAY -->
+		<!--  FLYWAY — versão compatível com PostgreSQL 18  -->
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>
 		</dependency>
-
-		<!-- VALIDAÇÃO -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<!--  VALIDAÇÃO  -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
-
-		<!-- JWT -->
+		<!--  EMAIL  -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+		<!--  AGENDAMENTO DE TAREFAS (lembretes automáticos)  -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-quartz</artifactId>
+		</dependency>
+		<!--  JWT  -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
 			<version>0.11.5</version>
 		</dependency>
-
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-impl</artifactId>
 			<version>0.11.5</version>
 			<scope>runtime</scope>
 		</dependency>
-
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-jackson</artifactId>
 			<version>0.11.5</version>
 			<scope>runtime</scope>
 		</dependency>
-
-		<!-- LOMBOK -->
+		<!--  LOMBOK  -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
-
-		<!-- TESTES -->
+		<!--  TESTES  -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
 	</dependencies>
-
-	<!-- BUILD -->
 	<build>
 		<plugins>
-
-			<!-- SPRING BOOT -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
-
-			<!-- COMPILADOR JAVA -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
@@ -125,12 +110,11 @@
 						<path>
 							<groupId>org.projectlombok</groupId>
 							<artifactId>lombok</artifactId>
+							<version>1.18.32</version>
 						</path>
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
-
 		</plugins>
 	</build>
-
 </project>

@@ -1,6 +1,6 @@
 spring:
   application:
-    name: saas
+    name: agendara
 
   datasource:
     url: jdbc:postgresql://localhost:5432/saas
@@ -21,5 +21,24 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  # Configuração de Email
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: noreply.agendara@gmail.com
+    password: zlpu xfei fmcl pxas
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 server:
   port: 8080
+
+# Configurações do Agendara
+agendara:
+  email:
+    remetente: noreply.agendara@gmail.com
+    nome-remetente: Agendara
