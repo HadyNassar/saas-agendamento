@@ -3,7 +3,6 @@ package com.hady.saas.domain.horario;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import jakarta.persistence.*;
 
-import java.time.DayOfWeek;
 import java.time.LocalTime;
 
 @Entity
@@ -14,35 +13,31 @@ public class HorarioFuncionamento {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private DayOfWeek diaSemana; // MONDAY, TUESDAY... SUNDAY
+    @Column(nullable = false, columnDefinition = "varchar")
+    private String diaSemana; // ex: "MONDAY", "WEDNESDAY"
 
     @Column(nullable = false)
-    private LocalTime horaAbertura; // ex: 08:00
+    private LocalTime horaAbertura;
 
     @Column(nullable = false)
-    private LocalTime horaFechamento; // ex: 18:00
+    private LocalTime horaFechamento;
 
-    // Intervalo de almoço (opcional)
-    private LocalTime inicioAlmoco; // ex: 12:00
-    private LocalTime fimAlmoco;    // ex: 13:00
+    private LocalTime inicioAlmoco;
+    private LocalTime fimAlmoco;
 
-    // Intervalo entre atendimentos em minutos (ex: 10 minutos de folga entre clientes)
     private int intervaloMinutos = 0;
 
-    private boolean aberto = true; // false = estabelecimento fechado nesse dia
+    private boolean aberto = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
     private Estabelecimento estabelecimento;
 
-    // Construtor vazio obrigatório para JPA
     public HorarioFuncionamento() {}
 
     // GETTERS
     public Long getId() { return id; }
-    public DayOfWeek getDiaSemana() { return diaSemana; }
+    public String getDiaSemana() { return diaSemana; }
     public LocalTime getHoraAbertura() { return horaAbertura; }
     public LocalTime getHoraFechamento() { return horaFechamento; }
     public LocalTime getInicioAlmoco() { return inicioAlmoco; }
@@ -53,7 +48,7 @@ public class HorarioFuncionamento {
 
     // SETTERS
     public void setId(Long id) { this.id = id; }
-    public void setDiaSemana(DayOfWeek diaSemana) { this.diaSemana = diaSemana; }
+    public void setDiaSemana(String diaSemana) { this.diaSemana = diaSemana; }
     public void setHoraAbertura(LocalTime horaAbertura) { this.horaAbertura = horaAbertura; }
     public void setHoraFechamento(LocalTime horaFechamento) { this.horaFechamento = horaFechamento; }
     public void setInicioAlmoco(LocalTime inicioAlmoco) { this.inicioAlmoco = inicioAlmoco; }

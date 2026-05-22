@@ -9,6 +9,7 @@ import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.domain.servico.Servico;
 import com.hady.saas.infrastructure.repository.AgendamentoRepository;
 import com.hady.saas.infrastructure.repository.HorarioFuncionamentoRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -23,91 +24,93 @@ public class AgendamentoService {
     private final AgendamentoRepository agendamentoRepository;
     private final HorarioFuncionamentoRepository horarioRepository;
     private final ClienteService clienteService;
+    private final NotificacaoService notificacaoService;
 
     public AgendamentoService(AgendamentoRepository agendamentoRepository,
                               HorarioFuncionamentoRepository horarioRepository,
-                              ClienteService clienteService) {
+                              ClienteService clienteService,
+                              @Lazy NotificacaoService notificacaoService) {
         this.agendamentoRepository = agendamentoRepository;
         this.horarioRepository = horarioRepository;
         this.clienteService = clienteService;
+        this.notificacaoService = notificacaoService;
     }
 
-    // Cria agendamento pelo LINK PÚBLICO (cliente final)
-    // Valida horário de funcionamento e conflitos
+    // Cria agendamento pelo LINK PÚBLICO — valida horário de funcionamento
     public Agendamento agendarPeloCliente(Cliente cliente, Profissional profissional,
                                           Servico servico, Estabelecimento estabelecimento,
                                           LocalDateTime inicio) {
 
-        // Verifica se cliente está bloqueado
         if (cliente.isBloqueado()) {
             throw new RuntimeException("Cliente bloqueado: " + cliente.getMotivoBloqueio());
         }
 
-        // Calcula horário fim: início + duração do serviço
         LocalDateTime fim = inicio.plusMinutes(servico.getDuracaoMinutos());
-
-        // Valida horário de funcionamento para agendamentos pelo cliente
         validarHorarioFuncionamento(estabelecimento.getId(), inicio, fim);
-
-        // Verifica conflito de horário do profissional
         validarConflito(profissional.getId(), inicio, fim, null);
 
-        return salvar(cliente, profissional, servico, estabelecimento, inicio, fim, true);
+        Agendamento agendamento = salvar(cliente, profissional, servico, estabelecimento, inicio, fim, true);
+
+        // Envia email de confirmação
+        try {
+            notificacaoService.enviarConfirmacao(agendamento);
+        } catch (Exception e) {
+            System.err.println("Erro ao enviar confirmação: " + e.getMessage());
+        }
+
+        return agendamento;
     }
 
-    // Cria agendamento pelo PAINEL INTERNO (ADMIN ou FUNCIONARIO)
-    // Não valida horário de funcionamento — pode agendar em qualquer horário
+    // Cria agendamento pelo PAINEL INTERNO — sem restrição de horário
     public Agendamento agendarPeloPainel(Cliente cliente, Profissional profissional,
                                          Servico servico, Estabelecimento estabelecimento,
                                          LocalDateTime inicio) {
 
-        // Calcula horário fim: início + duração do serviço
         LocalDateTime fim = inicio.plusMinutes(servico.getDuracaoMinutos());
-
-        // Verifica apenas conflito de horário — sem restrição de funcionamento
         validarConflito(profissional.getId(), inicio, fim, null);
 
-        return salvar(cliente, profissional, servico, estabelecimento, inicio, fim, false);
+        Agendamento agendamento = salvar(cliente, profissional, servico, estabelecimento, inicio, fim, false);
+
+        // Envia email de confirmação
+        try {
+            notificacaoService.enviarConfirmacao(agendamento);
+        } catch (Exception e) {
+            System.err.println("Erro ao enviar confirmação: " + e.getMessage());
+        }
+
+        return agendamento;
     }
 
-    // Cancela agendamento
     public Agendamento cancelar(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
 
         if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
-            throw new RuntimeException("Apenas agendamentos com status AGENDADO podem ser cancelados");
+            throw new RuntimeException("Apenas agendamentos AGENDADO podem ser cancelados");
         }
 
         agendamento.setStatus(StatusAgendamento.CANCELADO);
         return agendamentoRepository.save(agendamento);
     }
 
-    // Conclui atendimento
     public Agendamento concluir(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
 
         if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
-            throw new RuntimeException("Apenas agendamentos com status AGENDADO podem ser concluídos");
+            throw new RuntimeException("Apenas agendamentos AGENDADO podem ser concluídos");
         }
 
         agendamento.setStatus(StatusAgendamento.CONCLUIDO);
         return agendamentoRepository.save(agendamento);
     }
 
-    // Marca cliente como FALTOU e incrementa contador de faltas
     public Agendamento marcarFalta(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
-
         agendamento.setStatus(StatusAgendamento.FALTOU);
         agendamentoRepository.save(agendamento);
-
-        // Incrementa contador de faltas do cliente
         clienteService.registrarFalta(agendamento.getCliente().getId(), estabelecimentoId);
-
         return agendamento;
     }
 
-    // Lista agendamentos do estabelecimento por dia
     public List<Agendamento> listarPorDia(Long estabelecimentoId, LocalDate dia) {
         LocalDateTime inicio = dia.atStartOfDay();
         LocalDateTime fim = dia.atTime(23, 59, 59);
@@ -115,7 +118,6 @@ public class AgendamentoService {
                 estabelecimentoId, inicio, fim);
     }
 
-    // Lista agendamentos de um profissional por dia
     public List<Agendamento> listarPorProfissionalEDia(Long profissionalId, LocalDate dia) {
         LocalDateTime inicio = dia.atStartOfDay();
         LocalDateTime fim = dia.atTime(23, 59, 59);
@@ -123,21 +125,20 @@ public class AgendamentoService {
                 profissionalId, inicio, fim);
     }
 
-    // Gera slots de horários disponíveis para um profissional em um dia
-    // Usado pelo link público para mostrar horários ao cliente
     public List<LocalTime> gerarSlotsDisponiveis(Long profissionalId, Long estabelecimentoId,
                                                   LocalDate dia, int duracaoServico) {
 
-        // Busca horário de funcionamento do dia
+        String diaSemana = dia.getDayOfWeek().name();
+
         HorarioFuncionamento horario = horarioRepository
-                .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, dia.getDayOfWeek())
-                .orElseThrow(() -> new RuntimeException("Horário de funcionamento não configurado para este dia"));
+                .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, diaSemana)
+                .orElseThrow(() -> new RuntimeException(
+                        "Horário de funcionamento não configurado para: " + diaSemana));
 
         if (!horario.isAberto()) {
-            return new ArrayList<>(); // estabelecimento fechado neste dia
+            return new ArrayList<>();
         }
 
-        // Busca agendamentos já existentes do profissional neste dia
         LocalDateTime inicioDia = dia.atStartOfDay();
         LocalDateTime fimDia = dia.atTime(23, 59, 59);
         List<Agendamento> agendamentosExistentes = agendamentoRepository
@@ -150,7 +151,6 @@ public class AgendamentoService {
 
         while (cursor.plusMinutes(duracaoServico).compareTo(fechamento) <= 0) {
 
-            // Pula horário de almoço
             if (horario.getInicioAlmoco() != null && horario.getFimAlmoco() != null) {
                 if (!cursor.isBefore(horario.getInicioAlmoco()) &&
                     cursor.isBefore(horario.getFimAlmoco())) {
@@ -162,7 +162,6 @@ public class AgendamentoService {
             LocalDateTime slotInicio = dia.atTime(cursor);
             LocalDateTime slotFim = slotInicio.plusMinutes(duracaoServico);
 
-            // Verifica se o slot conflita com algum agendamento existente
             boolean temConflito = agendamentosExistentes.stream()
                     .filter(a -> a.getStatus() == StatusAgendamento.AGENDADO)
                     .anyMatch(a -> slotInicio.isBefore(a.getDataHoraFim()) &&
@@ -189,8 +188,6 @@ public class AgendamentoService {
         return agendamento;
     }
 
-    // ==================== MÉTODOS PRIVADOS ====================
-
     private Agendamento salvar(Cliente cliente, Profissional profissional, Servico servico,
                                Estabelecimento estabelecimento, LocalDateTime inicio,
                                LocalDateTime fim, boolean agendadoPeloCliente) {
@@ -206,13 +203,15 @@ public class AgendamentoService {
         return agendamentoRepository.save(agendamento);
     }
 
-    // Valida se horário está dentro do funcionamento do estabelecimento
     private void validarHorarioFuncionamento(Long estabelecimentoId,
                                               LocalDateTime inicio, LocalDateTime fim) {
 
+        String diaSemana = inicio.getDayOfWeek().name();
+
         HorarioFuncionamento horario = horarioRepository
-                .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, inicio.getDayOfWeek())
-                .orElseThrow(() -> new RuntimeException("Horário de funcionamento não configurado para este dia"));
+                .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, diaSemana)
+                .orElseThrow(() -> new RuntimeException(
+                        "Horário de funcionamento não configurado para: " + diaSemana));
 
         if (!horario.isAberto()) {
             throw new RuntimeException("Estabelecimento fechado neste dia");
@@ -226,7 +225,6 @@ public class AgendamentoService {
             throw new RuntimeException("Horário fora do funcionamento do estabelecimento");
         }
 
-        // Verifica conflito com horário de almoço
         if (horario.getInicioAlmoco() != null && horario.getFimAlmoco() != null) {
             if (horaInicio.isBefore(horario.getFimAlmoco()) &&
                 horaFim.isAfter(horario.getInicioAlmoco())) {
@@ -235,13 +233,11 @@ public class AgendamentoService {
         }
     }
 
-    // Valida conflito de horário do profissional
     private void validarConflito(Long profissionalId, LocalDateTime inicio,
                                   LocalDateTime fim, Long agendamentoIdIgnorar) {
 
         List<Agendamento> conflitos = agendamentoRepository.findConflitos(profissionalId, inicio, fim);
 
-        // Remove o próprio agendamento da validação (útil para edição futura)
         if (agendamentoIdIgnorar != null) {
             conflitos = conflitos.stream()
                     .filter(a -> !a.getId().equals(agendamentoIdIgnorar))
