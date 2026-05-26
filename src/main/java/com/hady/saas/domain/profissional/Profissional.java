@@ -1,5 +1,6 @@
 package com.hady.saas.domain.profissional;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.usuario.Usuario;
 import jakarta.persistence.*;
@@ -19,35 +20,31 @@ public class Profissional {
     private String nome;
 
     private String telefone;
-    private String fotoPerfil; // URL da foto (futuro)
+    private String fotoPerfil;
 
-    // Cada profissional pertence a um estabelecimento (multi-tenant)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
     private Estabelecimento estabelecimento;
 
-    // Profissional pode ter login — vínculo com Usuario (opcional)
-    // Null = profissional sem acesso ao sistema
+    @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", unique = true)
     private Usuario usuario;
 
-    // Especialidades do profissional (ex: corte, barba, sobrancelha)
-    // Um profissional pode ter várias especialidades
+    @JsonIgnore
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-        name = "profissional_especialidades",
-        joinColumns = @JoinColumn(name = "profissional_id"),
-        inverseJoinColumns = @JoinColumn(name = "especialidade_id")
+            name = "profissional_especialidades",
+            joinColumns = @JoinColumn(name = "profissional_id"),
+            inverseJoinColumns = @JoinColumn(name = "especialidade_id")
     )
     private List<Especialidade> especialidades = new ArrayList<>();
 
     private boolean ativo = true;
 
-    // Construtor vazio obrigatório para JPA
     public Profissional() {}
 
-    // GETTERS
     public Long getId() { return id; }
     public String getNome() { return nome; }
     public String getTelefone() { return telefone; }
@@ -57,7 +54,6 @@ public class Profissional {
     public List<Especialidade> getEspecialidades() { return especialidades; }
     public boolean isAtivo() { return ativo; }
 
-    // SETTERS
     public void setId(Long id) { this.id = id; }
     public void setNome(String nome) { this.nome = nome; }
     public void setTelefone(String telefone) { this.telefone = telefone; }

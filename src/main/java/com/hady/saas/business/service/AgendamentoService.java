@@ -36,7 +36,6 @@ public class AgendamentoService {
         this.notificacaoService = notificacaoService;
     }
 
-    // Cria agendamento pelo LINK PÚBLICO — valida horário de funcionamento
     public Agendamento agendarPeloCliente(Cliente cliente, Profissional profissional,
                                           Servico servico, Estabelecimento estabelecimento,
                                           LocalDateTime inicio) {
@@ -51,17 +50,16 @@ public class AgendamentoService {
 
         Agendamento agendamento = salvar(cliente, profissional, servico, estabelecimento, inicio, fim, true);
 
-        // Envia email de confirmação
+        // Notificação via WhatsApp (NotificacaoService já delega ao WhatsAppService)
         try {
             notificacaoService.enviarConfirmacao(agendamento);
         } catch (Exception e) {
-            System.err.println("Erro ao enviar confirmação: " + e.getMessage());
+            System.err.println("Erro ao enviar confirmação WhatsApp: " + e.getMessage());
         }
 
         return agendamento;
     }
 
-    // Cria agendamento pelo PAINEL INTERNO — sem restrição de horário
     public Agendamento agendarPeloPainel(Cliente cliente, Profissional profissional,
                                          Servico servico, Estabelecimento estabelecimento,
                                          LocalDateTime inicio) {
@@ -71,11 +69,10 @@ public class AgendamentoService {
 
         Agendamento agendamento = salvar(cliente, profissional, servico, estabelecimento, inicio, fim, false);
 
-        // Envia email de confirmação
         try {
             notificacaoService.enviarConfirmacao(agendamento);
         } catch (Exception e) {
-            System.err.println("Erro ao enviar confirmação: " + e.getMessage());
+            System.err.println("Erro ao enviar confirmação WhatsApp: " + e.getMessage());
         }
 
         return agendamento;
@@ -89,14 +86,22 @@ public class AgendamentoService {
         }
 
         agendamento.setStatus(StatusAgendamento.CANCELADO);
-        return agendamentoRepository.save(agendamento);
+        Agendamento salvo = agendamentoRepository.save(agendamento);
+
+        try {
+            notificacaoService.enviarCancelamento(salvo);
+        } catch (Exception e) {
+            System.err.println("Erro ao enviar cancelamento WhatsApp: " + e.getMessage());
+        }
+
+        return salvo;
     }
 
     public Agendamento concluir(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
 
         if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
-            throw new RuntimeException("Apenas agendamentos AGENDADO podem ser concluídos");
+            throw new RuntimeException("Apenas agendamentos AGENDADO podem ser concluidos");
         }
 
         agendamento.setStatus(StatusAgendamento.CONCLUIDO);
@@ -105,10 +110,27 @@ public class AgendamentoService {
 
     public Agendamento marcarFalta(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
+
+        if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
+            throw new RuntimeException("Apenas agendamentos AGENDADO podem ser marcados como falta");
+        }
+
         agendamento.setStatus(StatusAgendamento.FALTOU);
-        agendamentoRepository.save(agendamento);
+        Agendamento salvo = agendamentoRepository.save(agendamento);
         clienteService.registrarFalta(agendamento.getCliente().getId(), estabelecimentoId);
-        return agendamento;
+
+        try {
+            notificacaoService.enviarFalta(salvo);
+        } catch (Exception e) {
+            System.err.println("Erro ao enviar notificação de falta WhatsApp: " + e.getMessage());
+        }
+
+        return salvo;
+    }
+
+    public void enviarLembrete(Long agendamentoId, Long estabelecimentoId) {
+        Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
+        notificacaoService.enviarLembrete(agendamento);
     }
 
     public List<Agendamento> listarPorDia(Long estabelecimentoId, LocalDate dia) {
@@ -126,14 +148,14 @@ public class AgendamentoService {
     }
 
     public List<LocalTime> gerarSlotsDisponiveis(Long profissionalId, Long estabelecimentoId,
-                                                  LocalDate dia, int duracaoServico) {
+                                                 LocalDate dia, int duracaoServico) {
 
         String diaSemana = dia.getDayOfWeek().name();
 
         HorarioFuncionamento horario = horarioRepository
                 .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, diaSemana)
                 .orElseThrow(() -> new RuntimeException(
-                        "Horário de funcionamento não configurado para: " + diaSemana));
+                        "Horario de funcionamento nao configurado para: " + diaSemana));
 
         if (!horario.isAberto()) {
             return new ArrayList<>();
@@ -153,7 +175,7 @@ public class AgendamentoService {
 
             if (horario.getInicioAlmoco() != null && horario.getFimAlmoco() != null) {
                 if (!cursor.isBefore(horario.getInicioAlmoco()) &&
-                    cursor.isBefore(horario.getFimAlmoco())) {
+                        cursor.isBefore(horario.getFimAlmoco())) {
                     cursor = horario.getFimAlmoco();
                     continue;
                 }
@@ -165,7 +187,7 @@ public class AgendamentoService {
             boolean temConflito = agendamentosExistentes.stream()
                     .filter(a -> a.getStatus() == StatusAgendamento.AGENDADO)
                     .anyMatch(a -> slotInicio.isBefore(a.getDataHoraFim()) &&
-                                  slotFim.isAfter(a.getDataHoraInicio()));
+                            slotFim.isAfter(a.getDataHoraInicio()));
 
             if (!temConflito) {
                 slots.add(cursor);
@@ -179,10 +201,10 @@ public class AgendamentoService {
 
     public Agendamento buscarPorId(Long id, Long estabelecimentoId) {
         Agendamento agendamento = agendamentoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Agendamento não encontrado"));
+                .orElseThrow(() -> new RuntimeException("Agendamento nao encontrado"));
 
         if (!agendamento.getEstabelecimento().getId().equals(estabelecimentoId)) {
-            throw new RuntimeException("Agendamento não pertence a este estabelecimento");
+            throw new RuntimeException("Agendamento nao pertence a este estabelecimento");
         }
 
         return agendamento;
@@ -204,14 +226,14 @@ public class AgendamentoService {
     }
 
     private void validarHorarioFuncionamento(Long estabelecimentoId,
-                                              LocalDateTime inicio, LocalDateTime fim) {
+                                             LocalDateTime inicio, LocalDateTime fim) {
 
         String diaSemana = inicio.getDayOfWeek().name();
 
         HorarioFuncionamento horario = horarioRepository
                 .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, diaSemana)
                 .orElseThrow(() -> new RuntimeException(
-                        "Horário de funcionamento não configurado para: " + diaSemana));
+                        "Horario de funcionamento nao configurado para: " + diaSemana));
 
         if (!horario.isAberto()) {
             throw new RuntimeException("Estabelecimento fechado neste dia");
@@ -221,20 +243,20 @@ public class AgendamentoService {
         LocalTime horaFim = fim.toLocalTime();
 
         if (horaInicio.isBefore(horario.getHoraAbertura()) ||
-            horaFim.isAfter(horario.getHoraFechamento())) {
-            throw new RuntimeException("Horário fora do funcionamento do estabelecimento");
+                horaFim.isAfter(horario.getHoraFechamento())) {
+            throw new RuntimeException("Horario fora do funcionamento do estabelecimento");
         }
 
         if (horario.getInicioAlmoco() != null && horario.getFimAlmoco() != null) {
             if (horaInicio.isBefore(horario.getFimAlmoco()) &&
-                horaFim.isAfter(horario.getInicioAlmoco())) {
-                throw new RuntimeException("Horário conflita com o intervalo de almoço");
+                    horaFim.isAfter(horario.getInicioAlmoco())) {
+                throw new RuntimeException("Horario conflita com o intervalo de almoco");
             }
         }
     }
 
     private void validarConflito(Long profissionalId, LocalDateTime inicio,
-                                  LocalDateTime fim, Long agendamentoIdIgnorar) {
+                                 LocalDateTime fim, Long agendamentoIdIgnorar) {
 
         List<Agendamento> conflitos = agendamentoRepository.findConflitos(profissionalId, inicio, fim);
 
@@ -245,7 +267,7 @@ public class AgendamentoService {
         }
 
         if (!conflitos.isEmpty()) {
-            throw new RuntimeException("Profissional já possui agendamento neste horário");
+            throw new RuntimeException("Profissional ja possui agendamento neste horario");
         }
     }
 }

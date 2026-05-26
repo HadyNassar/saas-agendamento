@@ -9,13 +9,12 @@ import java.util.Optional;
 
 @Repository
 public interface ClienteRepository extends JpaRepository<Cliente, Long> {
-
-    // Busca cliente por telefone dentro do estabelecimento
-    Optional<Cliente> findByTelefoneAndEstabelecimentoId(String telefone, Long estabelecimentoId);
-
-    // Lista clientes do estabelecimento
     List<Cliente> findByEstabelecimentoId(Long estabelecimentoId);
 
-    // Verifica se cliente já existe no estabelecimento
-    boolean existsByTelefoneAndEstabelecimentoId(String telefone, Long estabelecimentoId);
+    Optional<Cliente> findByTelefoneAndEstabelecimentoId(String telefone, Long estabelecimentoId);
+
+    // ✅ evita LazyInitializationException no ClienteService
+    Optional<Cliente> findByIdAndEstabelecimentoId(Long id, Long estabelecimentoId);
+
+
 }

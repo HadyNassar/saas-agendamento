@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/app/{slug}")
@@ -41,24 +43,34 @@ public class AgendamentoPublicoController {
         this.agendamentoService = agendamentoService;
     }
 
-    // GET /app/barbearia-do-joao/profissionais
-    // Lista profissionais disponíveis (sem login)
+    // GET /app/{slug}/configuracoes — dados públicos do estabelecimento
+    // Usado pelo frontend para saber o limite de meses de antecipação
+    @GetMapping("/configuracoes")
+    public ResponseEntity<Map<String, Object>> configuracoesPublicas(@PathVariable String slug) {
+        Estabelecimento est = buscarEstabelecimento(slug);
+
+        Map<String, Object> cfg = new HashMap<>();
+        cfg.put("nome", est.getNome());
+        cfg.put("mesesAntecipacao", est.getMesesAntecipacao());
+
+        return ResponseEntity.ok(cfg);
+    }
+
+    // GET /app/{slug}/profissionais
     @GetMapping("/profissionais")
     public ResponseEntity<?> listarProfissionais(@PathVariable String slug) {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
         return ResponseEntity.ok(profissionalService.listarAtivos(estabelecimento.getId()));
     }
 
-    // GET /app/barbearia-do-joao/servicos
-    // Lista serviços disponíveis (sem login)
+    // GET /app/{slug}/servicos
     @GetMapping("/servicos")
     public ResponseEntity<?> listarServicos(@PathVariable String slug) {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
         return ResponseEntity.ok(servicoService.listarAtivos(estabelecimento.getId()));
     }
 
-    // GET /app/barbearia-do-joao/disponibilidade?profissionalId=1&servicoId=1&dia=2026-05-20
-    // Retorna slots de horários disponíveis (sem login)
+    // GET /app/{slug}/disponibilidade?profissionalId=1&servicoId=1&dia=2026-05-20
     @GetMapping("/disponibilidade")
     public ResponseEntity<List<LocalTime>> disponibilidade(
             @PathVariable String slug,
@@ -75,15 +87,13 @@ public class AgendamentoPublicoController {
         return ResponseEntity.ok(slots);
     }
 
-    // POST /app/barbearia-do-joao/agendar
-    // Cliente agenda sem login
+    // POST /app/{slug}/agendar
     @PostMapping("/agendar")
     public ResponseEntity<String> agendar(@PathVariable String slug,
                                            @Valid @RequestBody AgendamentoPublicoDTO dto) {
 
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
 
-        // Busca ou cria cliente automaticamente pelo telefone
         Cliente cliente = clienteService.buscarOuCriar(
                 dto.getClienteTelefone(),
                 dto.getClienteNome(),

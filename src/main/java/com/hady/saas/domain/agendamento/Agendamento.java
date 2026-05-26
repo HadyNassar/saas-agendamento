@@ -1,5 +1,6 @@
 package com.hady.saas.domain.agendamento;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.enums.StatusAgendamento;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
@@ -29,6 +30,7 @@ public class Agendamento {
     @JoinColumn(name = "servico_id", nullable = false)
     private Servico servico;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
     private Estabelecimento estabelecimento;
@@ -37,24 +39,20 @@ public class Agendamento {
     private LocalDateTime dataHoraInicio;
 
     @Column(nullable = false)
-    private LocalDateTime dataHoraFim; // calculado automaticamente: inicio + duração do serviço
+    private LocalDateTime dataHoraFim;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private StatusAgendamento status = StatusAgendamento.AGENDADO;
 
-    private String observacoes; // observações do agendamento específico
-
-    // Indica se foi agendado pelo link público (cliente) ou pelo painel (funcionário)
+    private String observacoes;
     private boolean agendadoPeloCliente = false;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime criadoEm = LocalDateTime.now();
 
-    // Construtor vazio obrigatório para JPA
     public Agendamento() {}
 
-    // GETTERS
     public Long getId() { return id; }
     public Cliente getCliente() { return cliente; }
     public Profissional getProfissional() { return profissional; }
@@ -67,7 +65,6 @@ public class Agendamento {
     public boolean isAgendadoPeloCliente() { return agendadoPeloCliente; }
     public LocalDateTime getCriadoEm() { return criadoEm; }
 
-    // SETTERS
     public void setId(Long id) { this.id = id; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
     public void setProfissional(Profissional profissional) { this.profissional = profissional; }

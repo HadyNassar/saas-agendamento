@@ -1,6 +1,7 @@
 package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.AgendamentoPainelDTO;
+import com.hady.saas.application.dto.AgendamentoResponseDTO;
 import com.hady.saas.business.service.*;
 import com.hady.saas.domain.agendamento.Agendamento;
 import com.hady.saas.domain.cliente.Cliente;
@@ -41,28 +42,33 @@ public class AgendamentoController {
         this.servicoService = servicoService;
     }
 
-    // GET /painel/agendamentos?dia=2026-05-20
-    // Lista agendamentos do dia — todos os usuários logados acessam
+    // GET /painel/agendamentos?dia=2026-05-25
     @GetMapping
-    public ResponseEntity<List<Agendamento>> listarPorDia(
+    public ResponseEntity<List<AgendamentoResponseDTO>> listarPorDia(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
             @AuthenticationPrincipal UserDetails userDetails) {
 
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
         Long estabelecimentoId = usuario.getEstabelecimento().getId();
 
-        // FUNCIONARIO_TOP vê apenas a própria agenda
+        List<Agendamento> agendamentos;
+
         if (usuario.getRole().name().equals("FUNCIONARIO_TOP")) {
             Profissional profissional = profissionalService.buscarPorUsuario(usuario.getId());
-            return ResponseEntity.ok(agendamentoService.listarPorProfissionalEDia(profissional.getId(), dia));
+            agendamentos = agendamentoService.listarPorProfissionalEDia(profissional.getId(), dia);
+        } else {
+            agendamentos = agendamentoService.listarPorDia(estabelecimentoId, dia);
         }
 
-        return ResponseEntity.ok(agendamentoService.listarPorDia(estabelecimentoId, dia));
+        // converte para DTO — resolve o problema do FetchType.LAZY
+        List<AgendamentoResponseDTO> dtos = agendamentos.stream()
+                .map(AgendamentoResponseDTO::de)
+                .toList();
+
+        return ResponseEntity.ok(dtos);
     }
 
-    // POST /painel/agendamentos — cria agendamento pelo painel
-    // ADMIN e FUNCIONARIO — sem restrição de horário
-    // FUNCIONARIO_TOP — não pode cancelar, mas pode criar
+    // POST /painel/agendamentos
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO', 'FUNCIONARIO_TOP')")
     public ResponseEntity<String> agendar(@Valid @RequestBody AgendamentoPainelDTO dto,
@@ -81,7 +87,6 @@ public class AgendamentoController {
     }
 
     // PATCH /painel/agendamentos/{id}/cancelar
-    // Apenas ADMIN pode cancelar — FUNCIONARIO_TOP não acessa
     @PatchMapping("/{id}/cancelar")
     @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO')")
     public ResponseEntity<String> cancelar(@PathVariable Long id,
@@ -93,7 +98,6 @@ public class AgendamentoController {
     }
 
     // PATCH /painel/agendamentos/{id}/concluir
-    // ADMIN, FUNCIONARIO e FUNCIONARIO_TOP podem concluir os próprios atendimentos
     @PatchMapping("/{id}/concluir")
     public ResponseEntity<String> concluir(@PathVariable Long id,
                                             @AuthenticationPrincipal UserDetails userDetails) {
@@ -104,7 +108,6 @@ public class AgendamentoController {
     }
 
     // PATCH /painel/agendamentos/{id}/falta
-    // Marca cliente como FALTOU — apenas ADMIN e FUNCIONARIO
     @PatchMapping("/{id}/falta")
     @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO')")
     public ResponseEntity<String> marcarFalta(@PathVariable Long id,

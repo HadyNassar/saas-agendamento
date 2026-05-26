@@ -24,14 +24,10 @@ public class ServicoService {
     }
 
     public Servico buscarPorId(Long id, Long estabelecimentoId) {
-        Servico servico = servicoRepository.findById(id)
+        // ✅ busca já filtrando por estabelecimentoId diretamente na query
+        // evita LazyInitializationException ao acessar servico.getEstabelecimento().getId()
+        return servicoRepository.findByIdAndEstabelecimentoId(id, estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Serviço não encontrado"));
-
-        if (!servico.getEstabelecimento().getId().equals(estabelecimentoId)) {
-            throw new RuntimeException("Serviço não pertence a este estabelecimento");
-        }
-
-        return servico;
     }
 
     public Servico atualizar(Long id, Servico dados, Long estabelecimentoId) {

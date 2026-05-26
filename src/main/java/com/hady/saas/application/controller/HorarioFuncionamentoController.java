@@ -20,26 +20,31 @@ public class HorarioFuncionamentoController {
     private final UsuarioService usuarioService;
 
     public HorarioFuncionamentoController(HorarioFuncionamentoRepository horarioRepository,
-                                           UsuarioService usuarioService) {
+                                          UsuarioService usuarioService) {
         this.horarioRepository = horarioRepository;
         this.usuarioService = usuarioService;
     }
 
-    // GET /painel/horarios — lista horários do estabelecimento
     @GetMapping
     public ResponseEntity<List<HorarioFuncionamento>> listar(@AuthenticationPrincipal UserDetails userDetails) {
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
         return ResponseEntity.ok(horarioRepository.findByEstabelecimentoId(usuario.getEstabelecimento().getId()));
     }
 
-    // POST /painel/horarios — cria ou atualiza horário
-    // Apenas ADMIN — FUNCIONARIO_TOP não acessa
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> salvar(@RequestBody HorarioFuncionamento horario,
-                                          @AuthenticationPrincipal UserDetails userDetails) {
+                                         @AuthenticationPrincipal UserDetails userDetails) {
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
         horario.setEstabelecimento(usuario.getEstabelecimento());
+
+        horarioRepository
+                .findByEstabelecimentoIdAndDiaSemana(
+                        usuario.getEstabelecimento().getId(),
+                        horario.getDiaSemana()
+                )
+                .ifPresent(existente -> horario.setId(existente.getId()));
+
         horarioRepository.save(horario);
         return ResponseEntity.ok("Horário salvo!");
     }

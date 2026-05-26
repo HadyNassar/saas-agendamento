@@ -31,11 +31,20 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.listar(usuario.getEstabelecimento().getId()));
     }
 
+    // POST /painel/clientes — criar novo cliente pelo painel
+    @PostMapping
+    public ResponseEntity<Cliente> criar(@RequestBody Cliente dados,
+                                         @AuthenticationPrincipal UserDetails userDetails) {
+        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
+        Cliente novo = clienteService.criar(dados, usuario.getEstabelecimento().getId());
+        return ResponseEntity.ok(novo);
+    }
+
     // PUT /painel/clientes/{id}
     @PutMapping("/{id}")
     public ResponseEntity<String> atualizar(@PathVariable Long id,
-                                             @RequestBody Cliente dados,
-                                             @AuthenticationPrincipal UserDetails userDetails) {
+                                            @RequestBody Cliente dados,
+                                            @AuthenticationPrincipal UserDetails userDetails) {
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
         clienteService.atualizar(id, dados, usuario.getEstabelecimento().getId());
         return ResponseEntity.ok("Cliente atualizado!");
@@ -45,8 +54,8 @@ public class ClienteController {
     @PatchMapping("/{id}/bloquear")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> bloquear(@PathVariable Long id,
-                                            @RequestBody String motivo,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
+                                           @RequestBody String motivo,
+                                           @AuthenticationPrincipal UserDetails userDetails) {
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
         clienteService.bloquear(id, motivo, usuario.getEstabelecimento().getId());
         return ResponseEntity.ok("Cliente bloqueado!");
@@ -56,7 +65,7 @@ public class ClienteController {
     @PatchMapping("/{id}/desbloquear")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> desbloquear(@PathVariable Long id,
-                                               @AuthenticationPrincipal UserDetails userDetails) {
+                                              @AuthenticationPrincipal UserDetails userDetails) {
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
         clienteService.desbloquear(id, usuario.getEstabelecimento().getId());
         return ResponseEntity.ok("Cliente desbloqueado!");

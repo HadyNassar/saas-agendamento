@@ -21,24 +21,14 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
-  # Configuração de Email
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: noreply.agendara@gmail.com
-    password: zlpu xfei fmcl pxas
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
+  jackson:
+    serialization:
+      fail-on-empty-beans: false
 
 server:
   port: 8080
 
-# Configurações do Agendara
-agendara:
-  email:
-    remetente: noreply.agendara@gmail.com
-    nome-remetente: Agendara
+evolution:
+  api:
+    url: http://localhost:8081
+    key: a6371931993A@_

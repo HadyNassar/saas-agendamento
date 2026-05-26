@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ServicoRepository extends JpaRepository<Servico, Long> {
@@ -14,4 +15,7 @@ public interface ServicoRepository extends JpaRepository<Servico, Long> {
 
     // Lista por categoria
     List<Servico> findByEstabelecimentoIdAndCategoriaAndAtivo(Long estabelecimentoId, String categoria, boolean ativo);
+
+    // ✅ Busca por id filtrando pelo estabelecimento — evita LazyInitializationException
+    Optional<Servico> findByIdAndEstabelecimentoId(Long id, Long estabelecimentoId);
 }

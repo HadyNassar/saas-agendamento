@@ -10,12 +10,10 @@ import java.util.Optional;
 @Repository
 public interface ProfissionalRepository extends JpaRepository<Profissional, Long> {
 
-    // Lista profissionais ativos de um estabelecimento
     List<Profissional> findByEstabelecimentoIdAndAtivo(Long estabelecimentoId, boolean ativo);
 
-    // Busca profissional por usuário vinculado
     Optional<Profissional> findByUsuarioId(Long usuarioId);
 
-    // Verifica se usuário já é profissional
-    boolean existsByUsuarioId(Long usuarioId);
+    // ✅ evita LazyInitializationException no ProfissionalService
+    Optional<Profissional> findByIdAndEstabelecimentoId(Long id, Long estabelecimentoId);
 }

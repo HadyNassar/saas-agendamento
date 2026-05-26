@@ -3,6 +3,7 @@ package com.hady.saas.business.service;
 import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.ClienteRepository;
+import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,13 +12,15 @@ import java.util.List;
 public class ClienteService {
 
     private final ClienteRepository clienteRepository;
+    private final EstabelecimentoRepository estabelecimentoRepository;
 
-    public ClienteService(ClienteRepository clienteRepository) {
+    public ClienteService(ClienteRepository clienteRepository,
+                          EstabelecimentoRepository estabelecimentoRepository) {
         this.clienteRepository = clienteRepository;
+        this.estabelecimentoRepository = estabelecimentoRepository;
     }
 
     // Busca cliente pelo telefone — se não existir cria automaticamente
-    // Usado no agendamento pelo link público
     public Cliente buscarOuCriar(String telefone, String nome, String email, Estabelecimento estabelecimento) {
         return clienteRepository
                 .findByTelefoneAndEstabelecimentoId(telefone, estabelecimento.getId())
@@ -31,15 +34,28 @@ public class ClienteService {
                 });
     }
 
-    public Cliente buscarPorId(Long id, Long estabelecimentoId) {
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
-
-        if (!cliente.getEstabelecimento().getId().equals(estabelecimentoId)) {
-            throw new RuntimeException("Cliente não pertence a este estabelecimento");
+    // Cria novo cliente pelo painel — se telefone já existir, retorna o existente
+    public Cliente criar(Cliente dados, Long estabelecimentoId) {
+        // Se já existe cliente com esse telefone neste estabelecimento, retorna ele
+        if (dados.getTelefone() != null && !dados.getTelefone().isBlank()) {
+            var existente = clienteRepository
+                    .findByTelefoneAndEstabelecimentoId(dados.getTelefone(), estabelecimentoId);
+            if (existente.isPresent()) {
+                return existente.get();
+            }
         }
 
-        return cliente;
+        Estabelecimento estabelecimento = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+        dados.setEstabelecimento(estabelecimento);
+        dados.setBloqueado(false);
+        dados.setTotalFaltas(0);
+        return clienteRepository.save(dados);
+    }
+
+    public Cliente buscarPorId(Long id, Long estabelecimentoId) {
+        return clienteRepository.findByIdAndEstabelecimentoId(id, estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
     }
 
     public List<Cliente> listar(Long estabelecimentoId) {
@@ -58,7 +74,6 @@ public class ClienteService {
         return clienteRepository.save(cliente);
     }
 
-    // Bloqueia cliente — apenas ADMIN pode fazer isso
     public void bloquear(Long id, String motivo, Long estabelecimentoId) {
         Cliente cliente = buscarPorId(id, estabelecimentoId);
         cliente.setBloqueado(true);
@@ -66,7 +81,6 @@ public class ClienteService {
         clienteRepository.save(cliente);
     }
 
-    // Desbloqueia cliente
     public void desbloquear(Long id, Long estabelecimentoId) {
         Cliente cliente = buscarPorId(id, estabelecimentoId);
         cliente.setBloqueado(false);
@@ -74,7 +88,6 @@ public class ClienteService {
         clienteRepository.save(cliente);
     }
 
-    // Registra falta do cliente
     public void registrarFalta(Long id, Long estabelecimentoId) {
         Cliente cliente = buscarPorId(id, estabelecimentoId);
         cliente.setTotalFaltas(cliente.getTotalFaltas() + 1);
