@@ -1,5 +1,6 @@
 package com.hady.saas.domain.servico;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import jakarta.persistence.*;
 
@@ -14,29 +15,27 @@ public class Servico {
     private Long id;
 
     @Column(nullable = false)
-    private String nome; // ex: Corte Masculino, Barba Completa
+    private String nome;
 
     private String descricao;
 
     @Column(nullable = false)
-    private Integer duracaoMinutos; // duração do serviço em minutos
+    private Integer duracaoMinutos;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
 
-    private String categoria; // ex: Cabelo, Barba, Estética, Unhas
+    private String categoria;
 
     private boolean ativo = true;
 
-    // Serviços pertencem ao estabelecimento (multi-tenant)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
     private Estabelecimento estabelecimento;
 
-    // Construtor vazio obrigatório para JPA
     public Servico() {}
 
-    // GETTERS
     public Long getId() { return id; }
     public String getNome() { return nome; }
     public String getDescricao() { return descricao; }
@@ -46,7 +45,6 @@ public class Servico {
     public boolean isAtivo() { return ativo; }
     public Estabelecimento getEstabelecimento() { return estabelecimento; }
 
-    // SETTERS
     public void setId(Long id) { this.id = id; }
     public void setNome(String nome) { this.nome = nome; }
     public void setDescricao(String descricao) { this.descricao = descricao; }

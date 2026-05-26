@@ -27,9 +27,11 @@ public class NotificacaoController {
         this.usuarioService = usuarioService;
     }
 
-    // POST /painel/notificacoes/lembrete/{agendamentoId}
-    // Envia lembrete manual para o cliente de um agendamento específico
-    // Apenas ADMIN e FUNCIONARIO podem enviar
+    /**
+     * POST /painel/notificacoes/lembrete/{agendamentoId}
+     * Envia lembrete manual via WhatsApp para o cliente do agendamento.
+     * Apenas ADMIN e FUNCIONARIO podem enviar.
+     */
     @PostMapping("/lembrete/{agendamentoId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO')")
     public ResponseEntity<String> enviarLembrete(@PathVariable Long agendamentoId,
@@ -39,12 +41,21 @@ public class NotificacaoController {
         Agendamento agendamento = agendamentoService.buscarPorId(
                 agendamentoId, usuario.getEstabelecimento().getId());
 
-        if (agendamento.getCliente().getEmail() == null ||
-            agendamento.getCliente().getEmail().isBlank()) {
-            return ResponseEntity.badRequest().body("Cliente não possui email cadastrado");
+        // Valida se o estabelecimento tem WhatsApp conectado
+        if (!agendamento.getEstabelecimento().isWhatsappConectado()) {
+            return ResponseEntity.badRequest()
+                    .body("WhatsApp não conectado. Acesse Configurações > WhatsApp para conectar.");
+        }
+
+        // Valida se o cliente tem telefone cadastrado
+        if (agendamento.getCliente().getTelefone() == null ||
+            agendamento.getCliente().getTelefone().isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body("Cliente não possui telefone cadastrado.");
         }
 
         notificacaoService.enviarLembrete(agendamento);
-        return ResponseEntity.ok("Lembrete enviado para " + agendamento.getCliente().getEmail());
+        return ResponseEntity.ok("Lembrete enviado via WhatsApp para " +
+                agendamento.getCliente().getTelefone());
     }
 }

@@ -3,6 +3,7 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.AlterarEmailDTO;
 import com.hady.saas.application.dto.AlterarSenhaDTO;
 import com.hady.saas.application.dto.EditarEstabelecimentoDTO;
+import com.hady.saas.application.dto.EstabelecimentoResponseDTO;
 import com.hady.saas.business.service.ConfiguracaoService;
 import com.hady.saas.business.service.UsuarioService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
@@ -27,19 +28,23 @@ public class ConfiguracaoController {
         this.usuarioService = usuarioService;
     }
 
-    // GET /painel/configuracoes/estabelecimento — dados do estabelecimento
+    // GET /painel/configuracoes/estabelecimento
     @GetMapping("/estabelecimento")
-    public ResponseEntity<Estabelecimento> buscarEstabelecimento(
+    public ResponseEntity<EstabelecimentoResponseDTO> buscarEstabelecimento(
             @AuthenticationPrincipal UserDetails userDetails) {
 
         Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        Estabelecimento estabelecimento = configuracaoService
-                .buscarEstabelecimento(usuario.getEstabelecimento().getId());
-        return ResponseEntity.ok(estabelecimento);
+        Estabelecimento est = configuracaoService.buscarEstabelecimento(usuario.getEstabelecimento().getId());
+
+        EstabelecimentoResponseDTO dto = new EstabelecimentoResponseDTO(
+                est.getId(), est.getNome(), est.getSlug(),
+                est.getTelefone(), est.getEndereco(),
+                est.getMesesAntecipacao(), est.isWhatsappConectado()
+        );
+        return ResponseEntity.ok(dto);
     }
 
-    // PUT /painel/configuracoes/estabelecimento — edita dados do estabelecimento
-    // Apenas ADMIN pode editar
+    // PUT /painel/configuracoes/estabelecimento — apenas ADMIN
     @PutMapping("/estabelecimento")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> editarEstabelecimento(
@@ -51,13 +56,13 @@ public class ConfiguracaoController {
                 usuario.getEstabelecimento().getId(),
                 dto.getNome(),
                 dto.getTelefone(),
-                dto.getEndereco()
+                dto.getEndereco(),
+                dto.getMesesAntecipacao()   // ← novo campo
         );
         return ResponseEntity.ok("Dados do estabelecimento atualizados!");
     }
 
-    // PUT /painel/configuracoes/email — altera email do usuário logado
-    // Disponível para todos os usuários
+    // PUT /painel/configuracoes/email
     @PutMapping("/email")
     public ResponseEntity<String> alterarEmail(
             @Valid @RequestBody AlterarEmailDTO dto,
@@ -68,8 +73,7 @@ public class ConfiguracaoController {
         return ResponseEntity.ok("Email alterado com sucesso! Faça login novamente com o novo email.");
     }
 
-    // PUT /painel/configuracoes/senha — altera senha do usuário logado
-    // Disponível para todos os usuários
+    // PUT /painel/configuracoes/senha
     @PutMapping("/senha")
     public ResponseEntity<String> alterarSenha(
             @Valid @RequestBody AlterarSenhaDTO dto,

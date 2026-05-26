@@ -53,11 +53,6 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
-		<!--  EMAIL  -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-mail</artifactId>
-		</dependency>
 		<!--  AGENDAMENTO DE TAREFAS (lembretes automáticos)  -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

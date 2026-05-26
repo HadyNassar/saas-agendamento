@@ -1,5 +1,6 @@
 package com.hady.saas.domain.horario;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import jakarta.persistence.*;
 
@@ -14,7 +15,7 @@ public class HorarioFuncionamento {
     private Long id;
 
     @Column(nullable = false, columnDefinition = "varchar")
-    private String diaSemana; // ex: "MONDAY", "WEDNESDAY"
+    private String diaSemana;
 
     @Column(nullable = false)
     private LocalTime horaAbertura;
@@ -24,18 +25,16 @@ public class HorarioFuncionamento {
 
     private LocalTime inicioAlmoco;
     private LocalTime fimAlmoco;
-
     private int intervaloMinutos = 0;
-
     private boolean aberto = true;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
     private Estabelecimento estabelecimento;
 
     public HorarioFuncionamento() {}
 
-    // GETTERS
     public Long getId() { return id; }
     public String getDiaSemana() { return diaSemana; }
     public LocalTime getHoraAbertura() { return horaAbertura; }
@@ -46,7 +45,6 @@ public class HorarioFuncionamento {
     public boolean isAberto() { return aberto; }
     public Estabelecimento getEstabelecimento() { return estabelecimento; }
 
-    // SETTERS
     public void setId(Long id) { this.id = id; }
     public void setDiaSemana(String diaSemana) { this.diaSemana = diaSemana; }
     public void setHoraAbertura(LocalTime horaAbertura) { this.horaAbertura = horaAbertura; }

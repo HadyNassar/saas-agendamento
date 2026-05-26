@@ -1,5 +1,6 @@
 package com.hady.saas.domain.cliente;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import jakarta.persistence.*;
 
@@ -20,14 +21,10 @@ public class Cliente {
     private String telefone;
 
     private String email;
-
-    // Observações importantes sobre o cliente
     private String alergias;
     private String preferencias;
     private String restricoes;
-    private String observacoes; // notas internas do estabelecimento
-
-    // Controle de faltas — se reincidente pode ser bloqueado
+    private String observacoes;
     private int totalFaltas = 0;
     private boolean bloqueado = false;
     private String motivoBloqueio;
@@ -35,15 +32,13 @@ public class Cliente {
     @Column(nullable = false, updatable = false)
     private LocalDateTime criadoEm = LocalDateTime.now();
 
-    // Cliente pertence a um estabelecimento (multi-tenant)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
     private Estabelecimento estabelecimento;
 
-    // Construtor vazio obrigatório para JPA
     public Cliente() {}
 
-    // GETTERS
     public Long getId() { return id; }
     public String getNome() { return nome; }
     public String getTelefone() { return telefone; }
@@ -58,7 +53,6 @@ public class Cliente {
     public LocalDateTime getCriadoEm() { return criadoEm; }
     public Estabelecimento getEstabelecimento() { return estabelecimento; }
 
-    // SETTERS
     public void setId(Long id) { this.id = id; }
     public void setNome(String nome) { this.nome = nome; }
     public void setTelefone(String telefone) { this.telefone = telefone; }
