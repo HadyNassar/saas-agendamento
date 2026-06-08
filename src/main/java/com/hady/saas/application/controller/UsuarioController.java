@@ -1,10 +1,11 @@
 package com.hady.saas.application.controller;
 
+import com.hady.saas.application.dto.UsuarioMeDTO;
 import com.hady.saas.business.service.UsuarioService;
 import com.hady.saas.domain.usuario.Usuario;
+import com.hady.saas.infrastructure.security.AuthUtil;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -12,15 +13,22 @@ import org.springframework.web.bind.annotation.*;
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final AuthUtil authUtil;
 
-    public UsuarioController(UsuarioService usuarioService) {
+    public UsuarioController(UsuarioService usuarioService, AuthUtil authUtil) {
         this.usuarioService = usuarioService;
+        this.authUtil = authUtil;
     }
 
     // GET /usuarios/me — retorna dados do usuário logado
     @GetMapping("/me")
-    public ResponseEntity<Usuario> me(@AuthenticationPrincipal UserDetails userDetails) {
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        return ResponseEntity.ok(usuario);
+    public ResponseEntity<UsuarioMeDTO> me(Authentication auth) {
+        Usuario usuario = usuarioService.buscarPorId(authUtil.getUsuarioId(auth));
+        return ResponseEntity.ok(new UsuarioMeDTO(
+                usuario.getId(),
+                usuario.getNome(),
+                usuario.getEmail(),
+                usuario.getRole()
+        ));
     }
 }

@@ -1,0 +1,84 @@
+spring:
+  application:
+    name: agendara
+
+  config:
+    import: optional:file:./application-local.yml
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/saas
+    username: postgres
+    password: ""
+    driver-class-name: org.postgresql.Driver
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username:                        # obrigatório — e-mail remetente (ex: noreply@seudominio.com)
+    password:                        # App Password do Google (não a senha normal da conta)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  jpa:
+    open-in-view: false              # evita queries N+1 silenciosas fora da camada de serviço
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        # dialect removido — o Hibernate 6 detecta automaticamente pelo driver
+        # manter explícito causava HHH90000025 no log
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+
+  jackson:
+    serialization:
+      fail-on-empty-beans: false
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+server:
+  port: 8080
+  error:
+    include-stacktrace: never        # stack trace nunca vai para o cliente
+
+jwt:
+  secret:                            # mínimo 32 caracteres — use variável de ambiente em produção
+
+evolution:
+  api:
+    url: http://localhost:8081
+    key:
+
+mercadopago:
+  access-token:
+  app-id:
+  client-secret:
+  redirect-uri: http://localhost:8080/painel/mercadopago/callback
+  webhook-secret:
+  planos:
+    standard:
+    elite:
+    platinum:
+
+upload:
+  dir: uploads
+
+app:
+  base-url: http://localhost:8080
+  frontend-url: http://localhost:5173
+
+cors:
+  allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000

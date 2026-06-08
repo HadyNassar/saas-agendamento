@@ -1,42 +1,14 @@
 package com.hady.saas.business.service;
 
-// ──────────────────────────────────────────────────────────────────────────────
-// ATENÇÃO: este arquivo mostra APENAS o método editarEstabelecimento atualizado.
-// Copie somente esse método para dentro do seu ConfiguracaoService existente,
-// substituindo o método antigo.
-// ──────────────────────────────────────────────────────────────────────────────
-
-// No seu ConfiguracaoService, localize o método editarEstabelecimento e
-// substitua pela versão abaixo (adiciona o parâmetro mesesAntecipacao):
-
-/*
-    public void editarEstabelecimento(Long estabelecimentoId,
-                                      String nome,
-                                      String telefone,
-                                      String endereco,
-                                      Integer mesesAntecipacao) {
-
-        Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
-                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
-
-        est.setNome(nome);
-        if (telefone != null) est.setTelefone(telefone);
-        if (endereco != null) est.setEndereco(endereco);
-        if (mesesAntecipacao != null) est.setMesesAntecipacao(mesesAntecipacao);
-
-        estabelecimentoRepository.save(est);
-    }
-*/
-
-// Se preferir, abaixo está o serviço completo como referência.
-// Ajuste os imports e dependências conforme o seu projeto.
-
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.repository.UsuarioRepository;
 import com.hady.saas.domain.usuario.Usuario;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 @Service
 public class ConfiguracaoService {
@@ -46,8 +18,8 @@ public class ConfiguracaoService {
     private final PasswordEncoder passwordEncoder;
 
     public ConfiguracaoService(EstabelecimentoRepository estabelecimentoRepository,
-                                UsuarioRepository usuarioRepository,
-                                PasswordEncoder passwordEncoder) {
+                               UsuarioRepository usuarioRepository,
+                               PasswordEncoder passwordEncoder) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
@@ -58,7 +30,7 @@ public class ConfiguracaoService {
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
     }
 
-    // ✅ Método atualizado — aceita mesesAntecipacao
+    @Transactional
     public void editarEstabelecimento(Long estabelecimentoId,
                                       String nome,
                                       String telefone,
@@ -76,6 +48,19 @@ public class ConfiguracaoService {
         estabelecimentoRepository.save(est);
     }
 
+    @Transactional
+    public void atualizarSinal(Long estabelecimentoId, Boolean exigirSinal, String tipoSinal, BigDecimal valorSinal) {
+        Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        est.setExigirSinal(exigirSinal != null && exigirSinal);
+        est.setTipoSinal(tipoSinal);
+        est.setValorSinal(valorSinal);
+
+        estabelecimentoRepository.save(est);
+    }
+
+    @Transactional
     public void alterarEmail(Long usuarioId, String novoEmail, String senhaAtual) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
@@ -91,6 +76,7 @@ public class ConfiguracaoService {
         usuarioRepository.save(usuario);
     }
 
+    @Transactional
     public void alterarSenha(Long usuarioId, String senhaAtual, String novaSenha, String confirmarNovaSenha) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
@@ -103,6 +89,7 @@ public class ConfiguracaoService {
         }
 
         usuario.setSenha(passwordEncoder.encode(novaSenha));
+        usuario.setSenhaAtualizadaEm(java.time.Instant.now());
         usuarioRepository.save(usuario);
     }
 }

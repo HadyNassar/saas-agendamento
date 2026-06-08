@@ -1,5 +1,7 @@
 package com.hady.saas.infrastructure.security;
 
+import com.hady.saas.business.service.CustomUserDetailsService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,6 +19,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -26,11 +29,22 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
     private final CustomUserDetailsService userDetailsService;
+    private final RateLimitFilter rateLimitFilter;
+    private final PlanoAcessoFilter planoAcessoFilter;
+
+    // Origens CORS — configure no application.yml:
+    //   cors.allowed-origins: http://localhost:5173,https://agendara.com.br
+    @Value("${cors.allowed-origins}")
+    private String allowedOriginsRaw;
 
     public SecurityConfig(JwtAuthenticationFilter jwtFilter,
-                          CustomUserDetailsService userDetailsService) {
+                          CustomUserDetailsService userDetailsService,
+                          RateLimitFilter rateLimitFilter,
+                          PlanoAcessoFilter planoAcessoFilter) {
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
+        this.rateLimitFilter = rateLimitFilter;
+        this.planoAcessoFilter = planoAcessoFilter;
     }
 
     @Bean
@@ -53,27 +67,49 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/login", "/auth/registro").permitAll()
+
+                        // ── Autenticação ──────────────────────────────────────
+                        .requestMatchers(
+                                "/auth/login",
+                                "/auth/registro",
+                                "/auth/esqueci-senha",
+                                "/auth/validar-token",
+                                "/auth/redefinir-senha"
+                        ).permitAll()
+
+                        // ── Painel público do estabelecimento ─────────────────
+                        // FIX: /uploads/** removido — fotos de clientes são dados sensíveis (LGPD).
+                        // Use GET /painel/fotos/serve/{fotoId} com JWT para servir arquivos autenticados.
                         .requestMatchers("/app/**").permitAll()
+
+                        // ── Mercado Pago ──────────────────────────────────────
+                        .requestMatchers("/painel/mercadopago/callback").permitAll()
+                        .requestMatchers("/webhook/mercadopago").permitAll()
+
+                        // ── Tudo mais exige JWT ───────────────────────────────
                         .anyRequest().authenticated()
                 )
                 .userDetailsService(userDetailsService)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(planoAcessoFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        List<String> origens = Arrays.stream(allowedOriginsRaw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:3000"
-        ));
+        configuration.setAllowedOrigins(origens);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

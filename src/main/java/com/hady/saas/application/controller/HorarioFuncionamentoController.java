@@ -1,13 +1,13 @@
 package com.hady.saas.application.controller;
 
-import com.hady.saas.business.service.UsuarioService;
+import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.horario.HorarioFuncionamento;
-import com.hady.saas.domain.usuario.Usuario;
+import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.repository.HorarioFuncionamentoRepository;
+import com.hady.saas.infrastructure.security.AuthUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,34 +17,33 @@ import java.util.List;
 public class HorarioFuncionamentoController {
 
     private final HorarioFuncionamentoRepository horarioRepository;
-    private final UsuarioService usuarioService;
+    private final EstabelecimentoRepository estabelecimentoRepository;
+    private final AuthUtil authUtil;
 
     public HorarioFuncionamentoController(HorarioFuncionamentoRepository horarioRepository,
-                                          UsuarioService usuarioService) {
+                                          EstabelecimentoRepository estabelecimentoRepository,
+                                          AuthUtil authUtil) {
         this.horarioRepository = horarioRepository;
-        this.usuarioService = usuarioService;
+        this.estabelecimentoRepository = estabelecimentoRepository;
+        this.authUtil = authUtil;
     }
 
     @GetMapping
-    public ResponseEntity<List<HorarioFuncionamento>> listar(@AuthenticationPrincipal UserDetails userDetails) {
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        return ResponseEntity.ok(horarioRepository.findByEstabelecimentoId(usuario.getEstabelecimento().getId()));
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<List<HorarioFuncionamento>> listar(Authentication auth) {
+        return ResponseEntity.ok(horarioRepository.findByEstabelecimentoId(authUtil.getEstabelecimentoId(auth)));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> salvar(@RequestBody HorarioFuncionamento horario,
-                                         @AuthenticationPrincipal UserDetails userDetails) {
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        horario.setEstabelecimento(usuario.getEstabelecimento());
-
+    public ResponseEntity<String> salvar(@RequestBody HorarioFuncionamento horario, Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        Estabelecimento estab = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+        horario.setEstabelecimento(estab);
         horarioRepository
-                .findByEstabelecimentoIdAndDiaSemana(
-                        usuario.getEstabelecimento().getId(),
-                        horario.getDiaSemana()
-                )
+                .findByEstabelecimentoIdAndDiaSemana(estabelecimentoId, horario.getDiaSemana())
                 .ifPresent(existente -> horario.setId(existente.getId()));
-
         horarioRepository.save(horario);
         return ResponseEntity.ok("Horário salvo!");
     }

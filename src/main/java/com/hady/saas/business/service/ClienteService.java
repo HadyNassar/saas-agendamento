@@ -4,6 +4,10 @@ import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.ClienteRepository;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +24,6 @@ public class ClienteService {
         this.estabelecimentoRepository = estabelecimentoRepository;
     }
 
-    // Busca cliente pelo telefone — se não existir cria automaticamente
     public Cliente buscarOuCriar(String telefone, String nome, String email, Estabelecimento estabelecimento) {
         return clienteRepository
                 .findByTelefoneAndEstabelecimentoId(telefone, estabelecimento.getId())
@@ -34,9 +37,7 @@ public class ClienteService {
                 });
     }
 
-    // Cria novo cliente pelo painel — se telefone já existir, retorna o existente
     public Cliente criar(Cliente dados, Long estabelecimentoId) {
-        // Se já existe cliente com esse telefone neste estabelecimento, retorna ele
         if (dados.getTelefone() != null && !dados.getTelefone().isBlank()) {
             var existente = clienteRepository
                     .findByTelefoneAndEstabelecimentoId(dados.getTelefone(), estabelecimentoId);
@@ -60,6 +61,27 @@ public class ClienteService {
 
     public List<Cliente> listar(Long estabelecimentoId) {
         return clienteRepository.findByEstabelecimentoId(estabelecimentoId);
+    }
+
+    // ─── Listagem paginada com busca unificada e filtro de bloqueados ─────────
+    public Page<Cliente> listarPaginado(Long estabelecimentoId, int page, int size,
+                                        String busca, Boolean bloqueado) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("nome").ascending());
+
+        if (busca != null && !busca.isBlank()) {
+            return clienteRepository.buscarPorNomeTelefoneOuEmail(
+                    estabelecimentoId, busca.trim(), pageable);
+        }
+        if (bloqueado != null) {
+            return clienteRepository.findByEstabelecimentoIdAndBloqueado(
+                    estabelecimentoId, bloqueado, pageable);
+        }
+        return clienteRepository.findByEstabelecimentoId(estabelecimentoId, pageable);
+    }
+
+    // Sobrecarga para compatibilidade com chamadas sem filtro de bloqueado
+    public Page<Cliente> listarPaginado(Long estabelecimentoId, int page, int size, String busca) {
+        return listarPaginado(estabelecimentoId, page, size, busca, null);
     }
 
     public Cliente atualizar(Long id, Cliente dados, Long estabelecimentoId) {

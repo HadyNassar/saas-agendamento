@@ -4,6 +4,13 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Segredos — NUNCA commitar ###
+application-local.yml
+.env
+.env.local
+.env.production
+uploads/
+
 ### STS ###
 .apt_generated
 .classpath

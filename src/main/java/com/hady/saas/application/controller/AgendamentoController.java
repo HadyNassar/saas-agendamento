@@ -8,13 +8,14 @@ import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.domain.servico.Servico;
-import com.hady.saas.domain.usuario.Usuario;
+import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
+import com.hady.saas.infrastructure.security.AuthUtil;
+import com.hady.saas.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -25,96 +26,119 @@ import java.util.List;
 public class AgendamentoController {
 
     private final AgendamentoService agendamentoService;
-    private final UsuarioService usuarioService;
     private final ClienteService clienteService;
     private final ProfissionalService profissionalService;
     private final ServicoService servicoService;
+    private final EstabelecimentoRepository estabelecimentoRepository;
+    private final AuthUtil authUtil;
 
     public AgendamentoController(AgendamentoService agendamentoService,
-                                  UsuarioService usuarioService,
                                   ClienteService clienteService,
                                   ProfissionalService profissionalService,
-                                  ServicoService servicoService) {
+                                  ServicoService servicoService,
+                                  EstabelecimentoRepository estabelecimentoRepository,
+                                  AuthUtil authUtil) {
         this.agendamentoService = agendamentoService;
-        this.usuarioService = usuarioService;
         this.clienteService = clienteService;
         this.profissionalService = profissionalService;
         this.servicoService = servicoService;
+        this.estabelecimentoRepository = estabelecimentoRepository;
+        this.authUtil = authUtil;
     }
 
-    // GET /painel/agendamentos?dia=2026-05-25
     @GetMapping
     public ResponseEntity<List<AgendamentoResponseDTO>> listarPorDia(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            Authentication auth) {
 
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        Long estabelecimentoId = usuario.getEstabelecimento().getId();
-
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
         List<Agendamento> agendamentos;
 
-        if (usuario.getRole().name().equals("FUNCIONARIO_TOP")) {
-            Profissional profissional = profissionalService.buscarPorUsuario(usuario.getId());
-            agendamentos = agendamentoService.listarPorProfissionalEDia(profissional.getId(), dia);
+        // PROFISSIONAL só vê os próprios agendamentos
+        boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_PROFISSIONAL"));
+
+        if (isFuncionarioPlatinum) {
+            Profissional profissional = profissionalService.buscarPorUsuario(authUtil.getUsuarioId(auth));
+            agendamentos = agendamentoService.listarPorProfissionalEDia(profissional.getId(), estabelecimentoId, dia);
         } else {
             agendamentos = agendamentoService.listarPorDia(estabelecimentoId, dia);
         }
 
-        // converte para DTO — resolve o problema do FetchType.LAZY
-        List<AgendamentoResponseDTO> dtos = agendamentos.stream()
-                .map(AgendamentoResponseDTO::de)
-                .toList();
-
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(agendamentos.stream().map(AgendamentoResponseDTO::de).toList());
     }
 
-    // POST /painel/agendamentos
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO', 'FUNCIONARIO_TOP')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
     public ResponseEntity<String> agendar(@Valid @RequestBody AgendamentoPainelDTO dto,
-                                           @AuthenticationPrincipal UserDetails userDetails) {
+                                           Authentication auth) {
 
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        Estabelecimento estabelecimento = usuario.getEstabelecimento();
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
 
-        Cliente cliente = clienteService.buscarPorId(dto.getClienteId(), estabelecimento.getId());
-        Profissional profissional = profissionalService.buscarPorId(dto.getProfissionalId(), estabelecimento.getId());
-        Servico servico = servicoService.buscarPorId(dto.getServicoId(), estabelecimento.getId());
+        Estabelecimento estabelecimento = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        // PROFISSIONAL só pode criar agendamentos na própria agenda.
+        boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_PROFISSIONAL"));
+
+        if (isFuncionarioPlatinum) {
+            Profissional proprio = profissionalService.buscarPorUsuario(authUtil.getUsuarioId(auth));
+            if (!proprio.getId().equals(dto.getProfissionalId())) {
+                throw new RuntimeException(
+                        "No plano Platinum o funcionário só pode criar agendamentos na própria agenda.");
+            }
+        }
+
+        Cliente cliente = clienteService.buscarPorId(dto.getClienteId(), estabelecimentoId);
+        Profissional profissional = profissionalService.buscarPorId(dto.getProfissionalId(), estabelecimentoId);
+        Servico servico = servicoService.buscarPorId(dto.getServicoId(), estabelecimentoId);
 
         agendamentoService.agendarPeloPainel(cliente, profissional, servico, estabelecimento, dto.getDataHoraInicio());
-
         return ResponseEntity.ok("Agendamento criado com sucesso!");
     }
 
-    // PATCH /painel/agendamentos/{id}/cancelar
     @PatchMapping("/{id}/cancelar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO')")
-    public ResponseEntity<String> cancelar(@PathVariable Long id,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        agendamentoService.cancelar(id, usuario.getEstabelecimento().getId());
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<String> cancelar(@PathVariable Long id, Authentication auth) {
+        validarAcessoAgendamento(id, auth);
+        agendamentoService.cancelar(id, authUtil.getEstabelecimentoId(auth));
         return ResponseEntity.ok("Agendamento cancelado!");
     }
 
-    // PATCH /painel/agendamentos/{id}/concluir
     @PatchMapping("/{id}/concluir")
-    public ResponseEntity<String> concluir(@PathVariable Long id,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        agendamentoService.concluir(id, usuario.getEstabelecimento().getId());
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<String> concluir(@PathVariable Long id, Authentication auth) {
+        validarAcessoAgendamento(id, auth);
+        agendamentoService.concluir(id, authUtil.getEstabelecimentoId(auth));
         return ResponseEntity.ok("Atendimento concluído!");
     }
 
-    // PATCH /painel/agendamentos/{id}/falta
     @PatchMapping("/{id}/falta")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FUNCIONARIO')")
-    public ResponseEntity<String> marcarFalta(@PathVariable Long id,
-                                               @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        agendamentoService.marcarFalta(id, usuario.getEstabelecimento().getId());
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<String> marcarFalta(@PathVariable Long id, Authentication auth) {
+        validarAcessoAgendamento(id, auth);
+        agendamentoService.marcarFalta(id, authUtil.getEstabelecimentoId(auth));
         return ResponseEntity.ok("Falta registrada!");
+    }
+
+    // PROFISSIONAL só pode operar em agendamentos da própria agenda.
+    // ADMIN e GERENTE podem operar em qualquer agendamento do estabelecimento.
+    private void validarAcessoAgendamento(Long agendamentoId, Authentication auth) {
+        CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
+        boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_PROFISSIONAL"));
+
+        if (isFuncionarioPlatinum) {
+            Profissional proprio = profissionalService.buscarPorUsuario(authUtil.getUsuarioId(auth));
+            Agendamento agendamento = agendamentoService.buscarPorId(
+                    agendamentoId, authUtil.getEstabelecimentoId(auth));
+            if (!agendamento.getProfissional().getId().equals(proprio.getId())) {
+                throw new RuntimeException(
+                        "No plano Platinum o funcionário só pode alterar agendamentos da própria agenda.");
+            }
+        }
     }
 }

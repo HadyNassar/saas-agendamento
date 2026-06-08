@@ -18,4 +18,8 @@ public interface ServicoRepository extends JpaRepository<Servico, Long> {
 
     // ✅ Busca por id filtrando pelo estabelecimento — evita LazyInitializationException
     Optional<Servico> findByIdAndEstabelecimentoId(Long id, Long estabelecimentoId);
+
+    // Busca múltiplos serviços por lista de ids, garantindo que pertencem ao estabelecimento
+    // Usado na vinculação profissional×serviço (N×N — vários profissionais podem ter o mesmo serviço)
+    List<Servico> findByIdInAndEstabelecimentoId(List<Long> ids, Long estabelecimentoId);
 }

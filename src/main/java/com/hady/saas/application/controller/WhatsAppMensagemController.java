@@ -1,54 +1,48 @@
 package com.hady.saas.application.controller;
 
-import com.hady.saas.domain.usuario.Usuario;
+import com.hady.saas.business.service.AgendamentoService;
+import com.hady.saas.domain.agendamento.Agendamento;
 import com.hady.saas.domain.whatsapp.WhatsAppMensagem;
-import com.hady.saas.business.service.UsuarioService;
 import com.hady.saas.infrastructure.repository.WhatsAppMensagemRepository;
+import com.hady.saas.infrastructure.security.AuthUtil;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * GET /painel/whatsapp/mensagens → histórico de mensagens enviadas pelo estabelecimento
- * GET /painel/whatsapp/mensagens/agendamento/{id} → mensagens de um agendamento específico
- */
 @RestController
 @RequestMapping("/painel/whatsapp/mensagens")
 public class WhatsAppMensagemController {
 
     private final WhatsAppMensagemRepository mensagemRepository;
-    private final UsuarioService usuarioService;
+    private final AgendamentoService agendamentoService;
+    private final AuthUtil authUtil;
 
     public WhatsAppMensagemController(WhatsAppMensagemRepository mensagemRepository,
-                                      UsuarioService usuarioService) {
+                                      AgendamentoService agendamentoService,
+                                      AuthUtil authUtil) {
         this.mensagemRepository = mensagemRepository;
-        this.usuarioService = usuarioService;
+        this.agendamentoService = agendamentoService;
+        this.authUtil = authUtil;
     }
 
     @GetMapping
-    public ResponseEntity<List<WhatsAppMensagem>> listar(
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        Long estabelecimentoId = usuario.getEstabelecimento().getId();
-
-        List<WhatsAppMensagem> mensagens = mensagemRepository
-                .findByEstabelecimentoIdOrderByCriadoEmDesc(estabelecimentoId);
-
-        return ResponseEntity.ok(mensagens);
+    public ResponseEntity<List<WhatsAppMensagem>> listar(Authentication auth) {
+        return ResponseEntity.ok(
+            mensagemRepository.findByEstabelecimentoIdOrderByCriadoEmDesc(authUtil.getEstabelecimentoId(auth))
+        );
     }
 
     @GetMapping("/agendamento/{agendamentoId}")
-    public ResponseEntity<List<WhatsAppMensagem>> porAgendamento(
-            @PathVariable Long agendamentoId,
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<List<WhatsAppMensagem>> porAgendamento(@PathVariable Long agendamentoId,
+                                                                  Authentication auth) {
+        // Valida que o agendamento pertence ao estabelecimento do usuário autenticado.
+        // Sem isso, qualquer funcionário autenticado poderia consultar mensagens de
+        // agendamentos de outros tenants passando um agendamentoId arbitrário (IDOR).
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        agendamentoService.buscarPorId(agendamentoId, estabelecimentoId);
 
-        List<WhatsAppMensagem> mensagens = mensagemRepository
-                .findByAgendamentoId(agendamentoId);
-
-        return ResponseEntity.ok(mensagens);
+        return ResponseEntity.ok(mensagemRepository.findByAgendamentoId(agendamentoId));
     }
 }

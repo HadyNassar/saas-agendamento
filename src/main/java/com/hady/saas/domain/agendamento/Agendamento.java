@@ -7,6 +7,7 @@ import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.domain.servico.Servico;
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -48,32 +49,39 @@ public class Agendamento {
     private String observacoes;
     private boolean agendadoPeloCliente = false;
 
+    // Controla se o WhatsApp de avaliação já foi enviado para este agendamento
+    @Column(nullable = false)
+    private boolean avaliacaoEnviada = false;
+
+    @CreationTimestamp
     @Column(nullable = false, updatable = false)
-    private LocalDateTime criadoEm = LocalDateTime.now();
+    private LocalDateTime criadoEm;
 
     public Agendamento() {}
 
-    public Long getId() { return id; }
-    public Cliente getCliente() { return cliente; }
-    public Profissional getProfissional() { return profissional; }
-    public Servico getServico() { return servico; }
-    public Estabelecimento getEstabelecimento() { return estabelecimento; }
-    public LocalDateTime getDataHoraInicio() { return dataHoraInicio; }
-    public LocalDateTime getDataHoraFim() { return dataHoraFim; }
-    public StatusAgendamento getStatus() { return status; }
-    public String getObservacoes() { return observacoes; }
-    public boolean isAgendadoPeloCliente() { return agendadoPeloCliente; }
-    public LocalDateTime getCriadoEm() { return criadoEm; }
+    public Long getId()                          { return id; }
+    public Cliente getCliente()                  { return cliente; }
+    public Profissional getProfissional()        { return profissional; }
+    public Servico getServico()                  { return servico; }
+    public Estabelecimento getEstabelecimento()  { return estabelecimento; }
+    public LocalDateTime getDataHoraInicio()     { return dataHoraInicio; }
+    public LocalDateTime getDataHoraFim()        { return dataHoraFim; }
+    public StatusAgendamento getStatus()         { return status; }
+    public String getObservacoes()               { return observacoes; }
+    public boolean isAgendadoPeloCliente()       { return agendadoPeloCliente; }
+    public boolean isAvaliacaoEnviada()          { return avaliacaoEnviada; }
+    public LocalDateTime getCriadoEm()           { return criadoEm; }
 
-    public void setId(Long id) { this.id = id; }
-    public void setCliente(Cliente cliente) { this.cliente = cliente; }
-    public void setProfissional(Profissional profissional) { this.profissional = profissional; }
-    public void setServico(Servico servico) { this.servico = servico; }
-    public void setEstabelecimento(Estabelecimento estabelecimento) { this.estabelecimento = estabelecimento; }
-    public void setDataHoraInicio(LocalDateTime dataHoraInicio) { this.dataHoraInicio = dataHoraInicio; }
-    public void setDataHoraFim(LocalDateTime dataHoraFim) { this.dataHoraFim = dataHoraFim; }
-    public void setStatus(StatusAgendamento status) { this.status = status; }
-    public void setObservacoes(String observacoes) { this.observacoes = observacoes; }
-    public void setAgendadoPeloCliente(boolean agendadoPeloCliente) { this.agendadoPeloCliente = agendadoPeloCliente; }
-    public void setCriadoEm(LocalDateTime criadoEm) { this.criadoEm = criadoEm; }
+    public void setId(Long id)                                        { this.id = id; }
+    public void setCliente(Cliente cliente)                           { this.cliente = cliente; }
+    public void setProfissional(Profissional profissional)            { this.profissional = profissional; }
+    public void setServico(Servico servico)                           { this.servico = servico; }
+    public void setEstabelecimento(Estabelecimento estabelecimento)   { this.estabelecimento = estabelecimento; }
+    public void setDataHoraInicio(LocalDateTime dataHoraInicio)      { this.dataHoraInicio = dataHoraInicio; }
+    public void setDataHoraFim(LocalDateTime dataHoraFim)            { this.dataHoraFim = dataHoraFim; }
+    public void setStatus(StatusAgendamento status)                   { this.status = status; }
+    public void setObservacoes(String observacoes)                    { this.observacoes = observacoes; }
+    public void setAgendadoPeloCliente(boolean agendadoPeloCliente)  { this.agendadoPeloCliente = agendadoPeloCliente; }
+    public void setAvaliacaoEnviada(boolean avaliacaoEnviada)        { this.avaliacaoEnviada = avaliacaoEnviada; }
+    public void setCriadoEm(LocalDateTime criadoEm)                  { this.criadoEm = criadoEm; }
 }

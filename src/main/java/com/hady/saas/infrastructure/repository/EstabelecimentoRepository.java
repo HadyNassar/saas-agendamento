@@ -6,10 +6,15 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+// SUBSTITUI o EstabelecimentoRepository existente
+// Único acréscimo: findByMpSubscriptionId — usado pelo webhook do Mercado Pago
 @Repository
 public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento, Long> {
 
     Optional<Estabelecimento> findBySlug(String slug);
 
     boolean existsBySlug(String slug);
+
+    // Novo — necessário para o MercadoPagoWebhook atualizar status da assinatura
+    Optional<Estabelecimento> findByMpSubscriptionId(String mpSubscriptionId);
 }
