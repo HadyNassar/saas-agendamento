@@ -10,19 +10,21 @@ public class FotoProfissionalDTO {
     private String url;
     private LocalDateTime criadoEm;
 
+    public FotoProfissionalDTO() {}
+
+    /**
+     * Usado pelo FotoPainelController (painel autenticado).
+     * URL aponta para /painel/fotos/profissionais/{id}/serve — requer JWT.
+     *
+     * Para portfólio público, o FotoPublicoController constrói o DTO manualmente
+     * com a URL pré-assinada gerada por FotoService.gerarUrlPublicaProfissional().
+     */
     public static FotoProfissionalDTO from(FotoProfissional foto, String baseUrl) {
         FotoProfissionalDTO dto = new FotoProfissionalDTO();
         dto.setId(foto.getId());
-        dto.setUrl(baseUrl + "/uploads/profissionais/" + foto.getProfissional().getId()
-                + "/" + extrairNomeArquivo(foto.getCaminho()));
+        dto.setUrl(baseUrl + "/painel/fotos/profissionais/" + foto.getId() + "/serve");
         dto.setCriadoEm(foto.getCriadoEm());
         return dto;
-    }
-
-    private static String extrairNomeArquivo(String caminho) {
-        return caminho.contains("/")
-                ? caminho.substring(caminho.lastIndexOf("/") + 1)
-                : caminho;
     }
 
     public Long getId() { return id; }

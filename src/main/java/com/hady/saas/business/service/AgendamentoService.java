@@ -137,8 +137,13 @@ public class AgendamentoService {
     public Agendamento cancelar(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
 
-        if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
-            throw new RuntimeException("Apenas agendamentos AGENDADO podem ser cancelados");
+        // FIX (bug 5): aceita cancelar AGUARDANDO_PAGAMENTO além de AGENDADO.
+        // Antes, agendamentos pendentes de pagamento ficavam presos — impossível
+        // cancelar pelo painel, o horário nunca era liberado para outros clientes.
+        boolean cancelavel = agendamento.getStatus() == StatusAgendamento.AGENDADO
+                || agendamento.getStatus() == StatusAgendamento.AGUARDANDO_PAGAMENTO;
+        if (!cancelavel) {
+            throw new RuntimeException("Apenas agendamentos AGENDADO ou AGUARDANDO_PAGAMENTO podem ser cancelados");
         }
 
         agendamento.setStatus(StatusAgendamento.CANCELADO);

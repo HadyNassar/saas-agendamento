@@ -8,18 +8,22 @@ import com.hady.saas.domain.fotoprofissional.FotoProfissional;
 import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.infrastructure.repository.*;
-import jakarta.annotation.PostConstruct;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,9 +37,11 @@ public class FotoService {
     private final ProfissionalRepository profissionalRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final RespostaAnamneseRepository respostaAnamneseRepository;
+    private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
 
-    @Value("${upload.dir:uploads}")
-    private String uploadDir;
+    @Value("${r2.bucket}")
+    private String bucket;
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
@@ -49,24 +55,20 @@ public class FotoService {
                        ClienteRepository clienteRepository,
                        ProfissionalRepository profissionalRepository,
                        AgendamentoRepository agendamentoRepository,
-                       RespostaAnamneseRepository respostaAnamneseRepository) {
+                       RespostaAnamneseRepository respostaAnamneseRepository,
+                       S3Client s3Client,
+                       S3Presigner s3Presigner) {
         this.fotoClienteRepository = fotoClienteRepository;
         this.fotoProfissionalRepository = fotoProfissionalRepository;
         this.clienteRepository = clienteRepository;
         this.profissionalRepository = profissionalRepository;
         this.agendamentoRepository = agendamentoRepository;
         this.respostaAnamneseRepository = respostaAnamneseRepository;
-    }
-
-    @PostConstruct
-    public void criarDiretorios() throws IOException {
-        Files.createDirectories(Paths.get(uploadDir, "clientes"));
-        Files.createDirectories(Paths.get(uploadDir, "profissionais"));
+        this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
     }
 
     // ─── FICHA COMPLETA DO CLIENTE (painel autenticado) ───────────────────────
-    // Acesso exclusivo pelo painel — requer JWT com estabelecimentoId validado.
-    // A ficha contém dados sensíveis: histórico, anamnese, fotos antes/depois.
 
     public FichaClienteDTO montarFichaCliente(Long clienteId, Long estabelecimentoId) {
         Cliente cliente = clienteRepository.findByIdAndEstabelecimentoId(clienteId, estabelecimentoId)
@@ -120,7 +122,7 @@ public class FotoService {
                         .collect(Collectors.toList())
         );
 
-        // Fotos antes/depois
+        // Fotos antes/depois — URL aponta para endpoint autenticado (stream via JWT)
         ficha.setFotos(
                 fotoClienteRepository
                         .findByClienteIdAndClienteEstabelecimentoIdOrderByCriadoEmDesc(clienteId, estabelecimentoId)
@@ -164,12 +166,15 @@ public class FotoService {
             throw new RuntimeException("Tipo inválido. Use ANTES ou DEPOIS");
         }
 
-        String nomeArquivo = salvarArquivoComprimido(arquivo, "clientes/" + clienteId);
+        // Chave no R2: clientes/{clienteId}/{uuid}.jpg
+        String key = "clientes/" + clienteId + "/" + UUID.randomUUID() + ".jpg";
+        uploadComprimido(arquivo, key);
 
         FotoCliente foto = new FotoCliente();
         foto.setCliente(cliente);
         foto.setTipo(tipoFoto);
-        foto.setCaminho(uploadDir + "/clientes/" + clienteId + "/" + nomeArquivo);
+        // Armazenamos a chave R2 no campo "caminho" para delete posterior
+        foto.setCaminho(key);
         foto.setNomeOriginal(arquivo.getOriginalFilename());
         foto.setCriadoEm(LocalDateTime.now());
 
@@ -177,9 +182,10 @@ public class FotoService {
         return FotoClienteDTO.from(foto, baseUrl);
     }
 
-    // ─── SERVE ARQUIVO AUTENTICADO ────────────────────────────────────────────
-    // Chamado pelo endpoint GET /painel/fotos/clientes/{fotoId}/serve.
-    // Valida que a foto pertence ao estabelecimento do usuário logado antes de retornar o arquivo.
+    // ─── SERVE ARQUIVO AUTENTICADO (fotos de clientes) ────────────────────────
+    // Endpoint: GET /painel/fotos/clientes/{fotoId}/serve
+    // Valida que a foto pertence ao estabelecimento antes de retornar o stream.
+
     public Resource serveArquivoCliente(Long fotoId, Long estabelecimentoId) throws IOException {
         FotoCliente foto = fotoClienteRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
@@ -188,26 +194,11 @@ public class FotoService {
             throw new RuntimeException("Acesso negado");
         }
 
-        Path caminho = Paths.get(foto.getCaminho()).toAbsolutePath().normalize();
-
-        // FIX: verifica que o caminho resolvido ainda está dentro do diretório de uploads.
-        // Sem essa checagem, um valor corrompido no banco (ex: "../../etc/passwd") poderia
-        // ser servido pelo endpoint autenticado — path traversal via banco de dados.
-        Path base = Paths.get(uploadDir).toAbsolutePath().normalize();
-        if (!caminho.startsWith(base)) {
-            throw new RuntimeException("Acesso negado");
-        }
-
-        Resource resource = new UrlResource(caminho.toUri());
-
-        if (!resource.exists() || !resource.isReadable()) {
-            throw new RuntimeException("Arquivo não encontrado no disco");
-        }
-
-        return resource;
+        byte[] bytes = downloadR2(foto.getCaminho());
+        return new ByteArrayResource(bytes);
     }
 
-    public void removerFotoCliente(Long fotoId, Long estabelecimentoId) throws IOException {
+    public void removerFotoCliente(Long fotoId, Long estabelecimentoId) {
         FotoCliente foto = fotoClienteRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
 
@@ -215,14 +206,11 @@ public class FotoService {
             throw new RuntimeException("Acesso negado");
         }
 
-        Files.deleteIfExists(Paths.get(foto.getCaminho()));
+        deletarR2(foto.getCaminho());
         fotoClienteRepository.delete(foto);
     }
 
     // ─── FOTOS DO PROFISSIONAL ─────────────────────────────────────────────────
-    // Valida isolamento por estabelecimentoId em todos os casos (painel e portfólio público).
-    // O portfólio público (FotoPublicoController) também passa estabelecimentoId resolvido via slug,
-    // garantindo que um profissional de outro tenant não seja acessível.
 
     public List<FotoProfissionalDTO> listarFotosProfissional(Long profissionalId, Long estabelecimentoId) {
         profissionalRepository.findByIdAndEstabelecimentoId(profissionalId, estabelecimentoId)
@@ -248,11 +236,13 @@ public class FotoService {
             throw new RuntimeException("Limite de " + MAX_FOTOS + " fotos atingido para este profissional");
         }
 
-        String nomeArquivo = salvarArquivoComprimido(arquivo, "profissionais/" + profissionalId);
+        // Chave no R2: profissionais/{profissionalId}/{uuid}.jpg
+        String key = "profissionais/" + profissionalId + "/" + UUID.randomUUID() + ".jpg";
+        uploadComprimido(arquivo, key);
 
         FotoProfissional foto = new FotoProfissional();
         foto.setProfissional(profissional);
-        foto.setCaminho(uploadDir + "/profissionais/" + profissionalId + "/" + nomeArquivo);
+        foto.setCaminho(key);
         foto.setNomeOriginal(arquivo.getOriginalFilename());
         foto.setCriadoEm(LocalDateTime.now());
 
@@ -260,7 +250,10 @@ public class FotoService {
         return FotoProfissionalDTO.from(foto, baseUrl);
     }
 
-    public void removerFotoProfissional(Long fotoId, Long estabelecimentoId) throws IOException {
+    // ─── SERVE ARQUIVO AUTENTICADO (fotos de profissionais — painel) ──────────
+    // Endpoint: GET /painel/fotos/profissionais/{fotoId}/serve
+
+    public Resource serveArquivoProfissional(Long fotoId, Long estabelecimentoId) throws IOException {
         FotoProfissional foto = fotoProfissionalRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
 
@@ -268,11 +261,99 @@ public class FotoService {
             throw new RuntimeException("Acesso negado");
         }
 
-        Files.deleteIfExists(Paths.get(foto.getCaminho()));
+        byte[] bytes = downloadR2(foto.getCaminho());
+        return new ByteArrayResource(bytes);
+    }
+
+    /**
+     * Gera URL pré-assinada (1 hora) para servir fotos públicas de portfólio.
+     * Chamado pelo FotoPublicoController (portfólio público do profissional).
+     */
+    public String gerarUrlPublicaProfissional(Long fotoId, Long estabelecimentoId) {
+        FotoProfissional foto = fotoProfissionalRepository.findById(fotoId)
+                .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
+
+        if (!foto.getProfissional().getEstabelecimento().getId().equals(estabelecimentoId)) {
+            throw new RuntimeException("Acesso negado");
+        }
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofHours(1))
+                .getObjectRequest(r -> r.bucket(bucket).key(foto.getCaminho()))
+                .build();
+
+        return s3Presigner.presignGetObject(presignRequest).url().toString();
+    }
+
+    public void removerFotoProfissional(Long fotoId, Long estabelecimentoId) {
+        FotoProfissional foto = fotoProfissionalRepository.findById(fotoId)
+                .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
+
+        if (!foto.getProfissional().getEstabelecimento().getId().equals(estabelecimentoId)) {
+            throw new RuntimeException("Acesso negado");
+        }
+
+        deletarR2(foto.getCaminho());
         fotoProfissionalRepository.delete(foto);
     }
 
-    // ─── HELPERS ──────────────────────────────────────────────────────────────
+    // ─── HELPERS R2 ───────────────────────────────────────────────────────────
+
+    /**
+     * Comprime com Thumbnailator (máx 1200px, 80% qualidade, JPG) e faz putObject no R2.
+     */
+    private void uploadComprimido(MultipartFile arquivo, String key) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        Thumbnails.of(arquivo.getInputStream())
+                .width(1200)
+                .keepAspectRatio(true)
+                .outputQuality(0.80)
+                .outputFormat("jpg")
+                .toOutputStream(baos);
+
+        byte[] bytes = baos.toByteArray();
+
+        PutObjectRequest putRequest = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType("image/jpeg")
+                .contentLength((long) bytes.length)
+                .build();
+
+        s3Client.putObject(putRequest, RequestBody.fromBytes(bytes));
+    }
+
+    /**
+     * Faz getObject do R2 e retorna os bytes do arquivo.
+     */
+    private byte[] downloadR2(String key) throws IOException {
+        GetObjectRequest getRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+
+        try (ResponseInputStream<GetObjectResponse> response = s3Client.getObject(getRequest)) {
+            return response.readAllBytes();
+        }
+    }
+
+    /**
+     * Remove objeto do R2. Não lança exceção se o objeto não existir.
+     */
+    private void deletarR2(String key) {
+        try {
+            DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .build();
+            s3Client.deleteObject(deleteRequest);
+        } catch (NoSuchKeyException ignored) {
+            // Objeto já não existe no R2 — ok
+        }
+    }
+
+    // ─── VALIDAÇÃO ────────────────────────────────────────────────────────────
 
     private void validarArquivo(MultipartFile arquivo) {
         if (arquivo == null || arquivo.isEmpty()) {
@@ -285,35 +366,5 @@ public class FotoService {
         if (arquivo.getSize() > MAX_TAMANHO_BYTES) {
             throw new RuntimeException("Arquivo muito grande. Máximo: 2MB");
         }
-    }
-
-    /**
-     * Comprime a imagem com Thumbnailator:
-     * - máximo 1200px de largura
-     * - qualidade 80%
-     * - salvo como JPG (extensão .jpg)
-     *
-     * Adicionar ao pom.xml:
-     * <dependency>
-     *   <groupId>net.coobird</groupId>
-     *   <artifactId>thumbnailator</artifactId>
-     *   <version>0.4.20</version>
-     * </dependency>
-     */
-    private String salvarArquivoComprimido(MultipartFile arquivo, String subpasta) throws IOException {
-        Path dir = Paths.get(uploadDir, subpasta);
-        Files.createDirectories(dir);
-
-        String nomeArquivo = UUID.randomUUID() + ".jpg";
-        Path destino = dir.resolve(nomeArquivo);
-
-        Thumbnails.of(arquivo.getInputStream())
-                .width(1200)
-                .keepAspectRatio(true)
-                .outputQuality(0.80)
-                .outputFormat("jpg")
-                .toFile(destino.toFile());
-
-        return nomeArquivo;
     }
 }

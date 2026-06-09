@@ -6,16 +6,16 @@ spring:
     import: optional:file:./application-local.yml
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/saas
-    username: postgres
-    password: ""
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/saas}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:""}
     driver-class-name: org.postgresql.Driver
 
   mail:
     host: smtp.gmail.com
     port: 587
-    username:                        # obrigatório — e-mail remetente (ex: noreply@seudominio.com)
-    password:                        # App Password do Google (não a senha normal da conta)
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -24,15 +24,13 @@ spring:
             enable: true
 
   jpa:
-    open-in-view: false              # evita queries N+1 silenciosas fora da camada de serviço
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-        # dialect removido — o Hibernate 6 detecta automaticamente pelo driver
-        # manter explícito causava HHH90000025 no log
 
   flyway:
     enabled: true
@@ -52,33 +50,39 @@ spring:
 server:
   port: 8080
   error:
-    include-stacktrace: never        # stack trace nunca vai para o cliente
+    include-stacktrace: never
 
 jwt:
-  secret:                            # mínimo 32 caracteres — use variável de ambiente em produção
+  secret: ${JWT_SECRET:}
 
 evolution:
   api:
-    url: http://localhost:8081
-    key:
+    url: ${EVOLUTION_API_URL:http://localhost:8081}
+    key: ${EVOLUTION_API_KEY:}
 
 mercadopago:
-  access-token:
-  app-id:
-  client-secret:
-  redirect-uri: http://localhost:8080/painel/mercadopago/callback
-  webhook-secret:
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
+  app-id: ${MERCADOPAGO_APP_ID:}
+  client-secret: ${MERCADOPAGO_CLIENT_SECRET:}
+  redirect-uri: ${MERCADOPAGO_REDIRECT_URI:https://oagendara.com.br/painel/mercadopago/callback}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
   planos:
-    standard:
-    elite:
-    platinum:
+    standard: ${MERCADOPAGO_PLANOS_STANDARD:}
+    elite: ${MERCADOPAGO_PLANOS_ELITE:}
+    platinum: ${MERCADOPAGO_PLANOS_PLATINUM:}
 
-upload:
-  dir: uploads
+r2:
+  access-key-id: ${R2_ACCESS_KEY_ID:}
+  secret-access-key: ${R2_SECRET_ACCESS_KEY:}
+  endpoint: ${R2_ENDPOINT:}
+  bucket: ${R2_BUCKET:agendara-fotos}
 
 app:
-  base-url: http://localhost:8080
-  frontend-url: http://localhost:5173
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}
 
 cors:
-  allowed-origins: http://localhost:5173,http://localhost:5174,http://localhost:3000
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:3000}
+
+encryption:
+  secret-key: ${ENCRYPTION_SECRET_KEY:}

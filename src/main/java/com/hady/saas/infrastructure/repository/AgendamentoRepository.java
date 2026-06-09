@@ -43,10 +43,17 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
             @Param("fim") LocalDateTime fim);
 
     // ── conflitos de horário ──
+    // FIX (bug 4): inclui AGUARDANDO_PAGAMENTO além de AGENDADO.
+    // Sem isso, dois clientes podiam reservar o mesmo horário simultaneamente
+    // quando o pagamento com sinal estava ativo — o segundo agendamento era criado
+    // antes do primeiro ser confirmado, gerando double booking.
     @Query("""
         SELECT a FROM Agendamento a
         WHERE a.profissional.id = :profissionalId
-          AND a.status = com.hady.saas.domain.enums.StatusAgendamento.AGENDADO
+          AND a.status IN (
+            com.hady.saas.domain.enums.StatusAgendamento.AGENDADO,
+            com.hady.saas.domain.enums.StatusAgendamento.AGUARDANDO_PAGAMENTO
+          )
           AND a.dataHoraInicio < :fim
           AND a.dataHoraFim > :inicio
     """)

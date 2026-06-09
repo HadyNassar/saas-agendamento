@@ -101,6 +101,9 @@ public class MarketplaceOAuthService {
         body.add("grant_type",    "authorization_code");
         body.add("code",          code);
         body.add("redirect_uri",  mpConfig.getRedirectUri());
+        // test_token = true → MP gera token de sandbox sem movimentar dinheiro real.
+        // REMOVER esta linha ao ir para produção.
+        body.add("test_token",    "true");
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 

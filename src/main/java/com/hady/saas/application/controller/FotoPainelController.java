@@ -17,15 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * Endpoints autenticados para gestão de fotos e ficha completa do cliente.
- *
- * Ficha do cliente (histórico, anamnese, fotos antes/depois) é privada —
- * somente usuários do estabelecimento têm acesso via JWT.
- *
- * Fotos de profissionais no painel (upload/remoção) também são privadas.
- * O portfólio público do profissional fica em FotoPublicoController.
- */
 @RestController
 @RequestMapping("/painel")
 public class FotoPainelController {
@@ -38,9 +29,7 @@ public class FotoPainelController {
         this.authUtil = authUtil;
     }
 
-    // ─── SERVE ARQUIVO AUTENTICADO DE FOTO DO CLIENTE ────────────────────────
-    // Substitui o acesso direto via /uploads/** (que era público).
-    // Valida JWT + confirma que a foto pertence ao estabelecimento do usuário logado.
+    // ─── SERVE ARQUIVO AUTENTICADO — FOTO DO CLIENTE ─────────────────────────
 
     @GetMapping("/fotos/clientes/{fotoId}/serve")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
@@ -50,18 +39,25 @@ public class FotoPainelController {
 
         Resource resource = fotoService.serveArquivoCliente(fotoId, authUtil.getEstabelecimentoId(auth));
 
-        String contentType = "image/jpeg";
-        try {
-            String filename = resource.getFilename();
-            if (filename != null) {
-                if (filename.endsWith(".png"))  contentType = "image/png";
-                if (filename.endsWith(".webp")) contentType = "image/webp";
-            }
-        } catch (Exception ignored) {}
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(resource);
+    }
+
+    // ─── SERVE ARQUIVO AUTENTICADO — FOTO DO PROFISSIONAL (painel) ───────────
+
+    @GetMapping("/fotos/profissionais/{fotoId}/serve")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<Resource> serveArquivoProfissional(
+            @PathVariable Long fotoId,
+            Authentication auth) throws IOException {
+
+        Resource resource = fotoService.serveArquivoProfissional(fotoId, authUtil.getEstabelecimentoId(auth));
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .contentType(MediaType.parseMediaType(contentType))
+                .contentType(MediaType.IMAGE_JPEG)
                 .body(resource);
     }
 

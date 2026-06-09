@@ -23,6 +23,19 @@
 		<flyway.version>10.21.0</flyway.version>
 	</properties>
 
+	<dependencyManagement>
+		<dependencies>
+			<!-- Garante que todos os módulos do AWS SDK usem a mesma versão -->
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>2.25.0</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<dependencies>
 
 		<!-- ── WEB ──────────────────────────────────────────────────────────── -->
@@ -73,20 +86,6 @@
 		</dependency>
 
 		<!-- ── AGENDAMENTO DE TAREFAS (lembretes automáticos) ───────────────── -->
-		<!--
-			Em produção configure o Quartz com persistência no PostgreSQL
-			para evitar perda ou duplicata de jobs em reinicializações.
-			No application.yml adicione:
-
-			spring:
-			  quartz:
-			    job-store-type: jdbc
-			    jdbc:
-			      initialize-schema: never   # Flyway cuida do schema
-
-			E crie uma migration Flyway com as tabelas QRTZ_* usando o script:
-			org/quartz/impl/jdbcjobstore/tables_postgres.sql (dentro do jar do Quartz)
-		-->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-quartz</artifactId>
@@ -123,6 +122,13 @@
 			<groupId>net.coobird</groupId>
 			<artifactId>thumbnailator</artifactId>
 			<version>0.4.20</version>
+		</dependency>
+
+		<!-- ── CLOUDFLARE R2 / AWS S3 SDK ───────────────────────────────────── -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<!-- versão gerenciada pelo BOM acima -->
 		</dependency>
 
 		<!-- ── TESTES ───────────────────────────────────────────────────────── -->
