@@ -20,10 +20,15 @@ public class MercadoPagoConfiguration {
     @Value("${mercadopago.redirect-uri}")
     private String redirectUri;
 
-    // Secret obtido em: MP Dashboard → Sua aplicação → Webhooks → Chave secreta
-    // Configure como variável de ambiente: MERCADOPAGO_WEBHOOK_SECRET=<valor>
+    // Secret da aplicação de Assinaturas
+    // Variável de ambiente: MERCADOPAGO_WEBHOOK_SECRET
     @Value("${mercadopago.webhook-secret:}")
     private String webhookSecret;
+
+    // Secret da aplicação de Marketplace
+    // Variável de ambiente: MERCADOPAGO_WEBHOOK_SECRET_MARKETPLACE
+    @Value("${mercadopago.webhook-secret-marketplace:}")
+    private String webhookSecretMarketplace;
 
     @Value("${mercadopago.planos.standard:}")
     private String planoStandardId;
@@ -34,14 +39,15 @@ public class MercadoPagoConfiguration {
     @Value("${mercadopago.planos.platinum:}")
     private String planoPlatinumId;
 
-    public String getAccessToken()      { return accessToken; }
-    public String getAppId()            { return appId; }
-    public String getClientSecret()     { return clientSecret; }
-    public String getRedirectUri()      { return redirectUri; }
-    public String getWebhookSecret()    { return webhookSecret; }
-    public String getPlanoStandardId()  { return planoStandardId; }
-    public String getPlanoEliteId()     { return planoEliteId; }
-    public String getPlanoPlatinumId()  { return planoPlatinumId; }
+    public String getAccessToken()               { return accessToken; }
+    public String getAppId()                     { return appId; }
+    public String getClientSecret()              { return clientSecret; }
+    public String getRedirectUri()               { return redirectUri; }
+    public String getWebhookSecret()             { return webhookSecret; }
+    public String getWebhookSecretMarketplace()  { return webhookSecretMarketplace; }
+    public String getPlanoStandardId()           { return planoStandardId; }
+    public String getPlanoEliteId()              { return planoEliteId; }
+    public String getPlanoPlatinumId()           { return planoPlatinumId; }
 
     public String getPlanoIdPorTipo(String plano) {
         String planId = switch (plano.toUpperCase()) {
@@ -52,8 +58,8 @@ public class MercadoPagoConfiguration {
         };
         if (planId == null || planId.isBlank()) {
             throw new IllegalStateException(
-                "ID do plano " + plano.toUpperCase() + " não configurado. " +
-                "Defina a variável mercadopago.planos." + plano.toLowerCase() + " no application.yml."
+                    "ID do plano " + plano.toUpperCase() + " não configurado. " +
+                            "Defina a variável mercadopago.planos." + plano.toLowerCase() + " no application.yml."
             );
         }
         return planId;

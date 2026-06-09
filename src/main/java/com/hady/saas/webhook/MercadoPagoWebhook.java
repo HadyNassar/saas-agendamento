@@ -23,10 +23,6 @@ public class MercadoPagoWebhook {
 
     private final MercadoPagoConfiguration mpConfig;
     private final RestTemplate restTemplate;
-    // FIX: lógica transacional extraída para WebhookProcessorService.
-    // @Transactional em métodos privados de um @RestController é ignorado pelo Spring AOP
-    // (proxies não interceptam chamadas privadas). Com o @Service separado, o proxy
-    // funciona corretamente e os saves são atômicos.
     private final WebhookProcessorService webhookProcessor;
 
     public MercadoPagoWebhook(MercadoPagoConfiguration mpConfig,
@@ -39,17 +35,23 @@ public class MercadoPagoWebhook {
 
     @PostMapping
     public ResponseEntity<Void> receber(
-            @RequestHeader(value = "x-signature",    required = false) String xSignature,
+            @RequestHeader(value = "x-signature",   required = false) String xSignature,
             @RequestHeader(value = "x-request-id",  required = false) String xRequestId,
             @RequestBody Map<String, Object> body) {
 
-        if (!validarAssinatura(xSignature, xRequestId, body)) {
-            log.warn("[Webhook MP] Assinatura inválida — requisição rejeitada. x-signature={}", xSignature);
+        String type = (String) body.get("type");
+
+        // Seleciona o secret correto pelo tipo do evento:
+        //   subscription_preapproval → aplicação de Assinaturas
+        //   payment                  → aplicação de Marketplace
+        String secret = resolverSecret(type);
+
+        if (!validarAssinatura(xSignature, xRequestId, body, secret)) {
+            log.warn("[Webhook MP] Assinatura inválida — type={} x-signature={}", type, xSignature);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         try {
-            String type = (String) body.get("type");
             @SuppressWarnings("unchecked")
             Map<String, Object> dataMap = (Map<String, Object>) body.get("data");
             if (dataMap == null || type == null) return ResponseEntity.ok().build();
@@ -79,13 +81,21 @@ public class MercadoPagoWebhook {
         return ResponseEntity.ok().build();
     }
 
+    // ── Seleciona o secret correto pelo tipo do evento ───────────────────────
+    private String resolverSecret(String type) {
+        if ("payment".equals(type)) {
+            return mpConfig.getWebhookSecretMarketplace();
+        }
+        // subscription_preapproval e qualquer outro → secret de assinaturas
+        return mpConfig.getWebhookSecret();
+    }
+
     // ── Valida assinatura HMAC-SHA256 do Mercado Pago ────────────────────────
-    private boolean validarAssinatura(String xSignature, String xRequestId, Map<String, Object> body) {
-        String secret = mpConfig.getWebhookSecret();
+    private boolean validarAssinatura(String xSignature, String xRequestId,
+                                      Map<String, Object> body, String secret) {
 
         if (secret == null || secret.isBlank()) {
-            log.error("[Webhook MP] WEBHOOK_SECRET não configurado — endpoint BLOQUEADO por segurança. " +
-                    "Configure a variável de ambiente MERCADOPAGO_WEBHOOK_SECRET.");
+            log.error("[Webhook MP] Secret não configurado para este tipo de evento — endpoint BLOQUEADO.");
             return false;
         }
 
