@@ -29,6 +29,12 @@ public class Servico {
 
     private boolean ativo = true;
 
+    @Column(name = "custo_material_fixo", precision = 10, scale = 2)
+    private BigDecimal custoMaterialFixo = BigDecimal.ZERO;
+
+    @Column(name = "custo_material_percent", precision = 5, scale = 2)
+    private BigDecimal custoMaterialPercent = BigDecimal.ZERO;
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "estabelecimento_id", nullable = false)
@@ -36,21 +42,25 @@ public class Servico {
 
     public Servico() {}
 
-    public Long getId() { return id; }
-    public String getNome() { return nome; }
-    public String getDescricao() { return descricao; }
-    public Integer getDuracaoMinutos() { return duracaoMinutos; }
-    public BigDecimal getPreco() { return preco; }
-    public String getCategoria() { return categoria; }
-    public boolean isAtivo() { return ativo; }
-    public Estabelecimento getEstabelecimento() { return estabelecimento; }
+    public Long getId()                        { return id; }
+    public String getNome()                    { return nome; }
+    public String getDescricao()               { return descricao; }
+    public Integer getDuracaoMinutos()         { return duracaoMinutos; }
+    public BigDecimal getPreco()               { return preco; }
+    public String getCategoria()               { return categoria; }
+    public boolean isAtivo()                   { return ativo; }
+    public BigDecimal getCustoMaterialFixo()   { return custoMaterialFixo; }
+    public BigDecimal getCustoMaterialPercent(){ return custoMaterialPercent; }
+    public Estabelecimento getEstabelecimento(){ return estabelecimento; }
 
-    public void setId(Long id) { this.id = id; }
-    public void setNome(String nome) { this.nome = nome; }
-    public void setDescricao(String descricao) { this.descricao = descricao; }
-    public void setDuracaoMinutos(Integer duracaoMinutos) { this.duracaoMinutos = duracaoMinutos; }
-    public void setPreco(BigDecimal preco) { this.preco = preco; }
-    public void setCategoria(String categoria) { this.categoria = categoria; }
-    public void setAtivo(boolean ativo) { this.ativo = ativo; }
-    public void setEstabelecimento(Estabelecimento estabelecimento) { this.estabelecimento = estabelecimento; }
+    public void setId(Long id)                                       { this.id = id; }
+    public void setNome(String nome)                                 { this.nome = nome; }
+    public void setDescricao(String descricao)                       { this.descricao = descricao; }
+    public void setDuracaoMinutos(Integer duracaoMinutos)            { this.duracaoMinutos = duracaoMinutos; }
+    public void setPreco(BigDecimal preco)                           { this.preco = preco; }
+    public void setCategoria(String categoria)                       { this.categoria = categoria; }
+    public void setAtivo(boolean ativo)                              { this.ativo = ativo; }
+    public void setCustoMaterialFixo(BigDecimal custoMaterialFixo)   { this.custoMaterialFixo = custoMaterialFixo; }
+    public void setCustoMaterialPercent(BigDecimal v)                { this.custoMaterialPercent = v; }
+    public void setEstabelecimento(Estabelecimento estabelecimento)  { this.estabelecimento = estabelecimento; }
 }

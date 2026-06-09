@@ -2,12 +2,12 @@ package com.hady.saas.domain.enums;
 
 public enum Role {
 
-    // Existe em todos os planos — acesso total sempre
+    // Acesso total. Máximo de 2 ADMINs por estabelecimento.
     ADMIN,
 
-    // Existe em STANDARD e ELITE — acesso total igual ao ADMIN
-    FUNCIONARIO,
+    // Acesso completo ao painel: agenda, clientes, serviços, horários, WhatsApp, relatórios e configurações.
+    GERENTE,
 
-    // Existe apenas no PLATINUM — acesso restrito (vê só a própria agenda)
-    FUNCIONARIO_PLATINUM
+    // Acesso restrito: vê apenas a própria agenda e serviços. Sem clientes, relatórios, configurações ou WhatsApp.
+    PROFISSIONAL
 }

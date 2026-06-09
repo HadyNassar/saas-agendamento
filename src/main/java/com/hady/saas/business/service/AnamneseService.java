@@ -7,6 +7,7 @@ import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.PerguntaAnamneseRepository;
 import com.hady.saas.infrastructure.repository.RespostaAnamneseRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,17 +27,14 @@ public class AnamneseService {
 
     // ==================== PERGUNTAS ====================
 
-    // Lista perguntas ativas para exibir ao cliente
     public List<PerguntaAnamnese> listarPerguntasAtivas(Long estabelecimentoId) {
         return perguntaRepository.findByEstabelecimentoIdAndAtivaOrderByOrdem(estabelecimentoId, true);
     }
 
-    // Lista todas as perguntas para o admin gerenciar
     public List<PerguntaAnamnese> listarTodasPerguntas(Long estabelecimentoId) {
         return perguntaRepository.findByEstabelecimentoIdOrderByOrdem(estabelecimentoId);
     }
 
-    // Cria pergunta nova
     public PerguntaAnamnese criarPergunta(String texto, String tipo, int ordem, Estabelecimento estabelecimento) {
         PerguntaAnamnese pergunta = new PerguntaAnamnese();
         pergunta.setTexto(texto);
@@ -46,7 +44,6 @@ public class AnamneseService {
         return perguntaRepository.save(pergunta);
     }
 
-    // Edita pergunta existente
     public PerguntaAnamnese editarPergunta(Long perguntaId, String texto, String tipo,
                                            int ordem, Long estabelecimentoId) {
         PerguntaAnamnese pergunta = perguntaRepository.findById(perguntaId)
@@ -62,7 +59,6 @@ public class AnamneseService {
         return perguntaRepository.save(pergunta);
     }
 
-    // Desativa pergunta (não deleta para manter histórico)
     public void desativarPergunta(Long perguntaId, Long estabelecimentoId) {
         PerguntaAnamnese pergunta = perguntaRepository.findById(perguntaId)
                 .orElseThrow(() -> new RuntimeException("Pergunta não encontrada"));
@@ -75,11 +71,36 @@ public class AnamneseService {
         perguntaRepository.save(pergunta);
     }
 
+    public void ativarPergunta(Long perguntaId, Long estabelecimentoId) {
+        PerguntaAnamnese pergunta = perguntaRepository.findById(perguntaId)
+                .orElseThrow(() -> new RuntimeException("Pergunta não encontrada"));
+
+        if (!pergunta.getEstabelecimento().getId().equals(estabelecimentoId)) {
+            throw new RuntimeException("Pergunta não pertence a este estabelecimento");
+        }
+
+        pergunta.setAtiva(true);
+        perguntaRepository.save(pergunta);
+    }
+
+    @Transactional
+    public void excluirPergunta(Long perguntaId, Long estabelecimentoId) {
+        PerguntaAnamnese pergunta = perguntaRepository.findById(perguntaId)
+                .orElseThrow(() -> new RuntimeException("Pergunta não encontrada"));
+
+        if (!pergunta.getEstabelecimento().getId().equals(estabelecimentoId)) {
+            throw new RuntimeException("Pergunta não pertence a este estabelecimento");
+        }
+
+        // Remove as respostas vinculadas antes de excluir a pergunta
+        respostaRepository.deleteByPerguntaId(perguntaId);
+        perguntaRepository.delete(pergunta);
+    }
+
     // ==================== RESPOSTAS ====================
 
-    // Cliente preenche anamnese — só pode preencher uma vez
+    @Transactional
     public void preencherAnamnese(Cliente cliente, Map<Long, RespostaDTO> respostas) {
-
         if (respostaRepository.existsByClienteId(cliente.getId())) {
             throw new RuntimeException("Anamnese já preenchida. Apenas o estabelecimento pode editar.");
         }
@@ -98,9 +119,8 @@ public class AnamneseService {
         });
     }
 
-    // Usuário interno edita respostas do cliente
+    @Transactional
     public void editarRespostas(Long clienteId, Map<Long, RespostaDTO> respostas, Long estabelecimentoId) {
-
         respostas.forEach((perguntaId, dto) -> {
             PerguntaAnamnese pergunta = perguntaRepository.findById(perguntaId)
                     .orElseThrow(() -> new RuntimeException("Pergunta não encontrada: " + perguntaId));
@@ -109,13 +129,11 @@ public class AnamneseService {
                 throw new RuntimeException("Pergunta não pertence a este estabelecimento");
             }
 
-            // Busca resposta existente ou cria nova
             RespostaAnamnese resposta = respostaRepository
                     .findByClienteIdAndPerguntaId(clienteId, perguntaId)
                     .orElse(new RespostaAnamnese());
 
             if (resposta.getCliente() == null) {
-                // Nova resposta criada pelo usuário
                 Cliente cliente = new Cliente();
                 cliente.setId(clienteId);
                 resposta.setCliente(cliente);
@@ -130,17 +148,14 @@ public class AnamneseService {
         });
     }
 
-    // Busca respostas de um cliente para exibir no agendamento
     public List<RespostaAnamnese> buscarRespostasCliente(Long clienteId) {
         return respostaRepository.findByClienteId(clienteId);
     }
 
-    // Verifica se cliente já preencheu anamnese
     public boolean clienteJaPreencheu(Long clienteId) {
         return respostaRepository.existsByClienteId(clienteId);
     }
 
-    // DTO interno para receber respostas
     public static class RespostaDTO {
         private String resposta;
         private String detalhe;

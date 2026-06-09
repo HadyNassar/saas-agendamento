@@ -26,6 +26,8 @@ public class AgendamentoPublicoDTO {
     @NotNull(message = "Data e hora obrigatórias")
     private LocalDateTime dataHoraInicio;
 
+    private boolean aguardandoPagamento;
+
     // GETTERS
     public String getClienteNome() { return clienteNome; }
     public String getClienteTelefone() { return clienteTelefone; }
@@ -33,6 +35,7 @@ public class AgendamentoPublicoDTO {
     public Long getProfissionalId() { return profissionalId; }
     public Long getServicoId() { return servicoId; }
     public LocalDateTime getDataHoraInicio() { return dataHoraInicio; }
+    public boolean isAguardandoPagamento() { return aguardandoPagamento; }
 
     // SETTERS
     public void setClienteNome(String clienteNome) { this.clienteNome = clienteNome; }
@@ -41,4 +44,5 @@ public class AgendamentoPublicoDTO {
     public void setProfissionalId(Long profissionalId) { this.profissionalId = profissionalId; }
     public void setServicoId(Long servicoId) { this.servicoId = servicoId; }
     public void setDataHoraInicio(LocalDateTime dataHoraInicio) { this.dataHoraInicio = dataHoraInicio; }
+    public void setAguardandoPagamento(boolean aguardandoPagamento) { this.aguardandoPagamento = aguardandoPagamento; }
 }

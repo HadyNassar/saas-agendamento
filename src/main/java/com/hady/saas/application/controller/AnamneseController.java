@@ -1,18 +1,19 @@
 package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.PerguntaAnamneseDTO;
+import com.hady.saas.application.dto.PerguntaAnamneseResposta;
 import com.hady.saas.application.dto.PreencherAnamneseDTO;
 import com.hady.saas.business.service.AnamneseService;
-import com.hady.saas.business.service.UsuarioService;
-import com.hady.saas.domain.anamnese.PerguntaAnamnese;
+import com.hady.saas.business.service.ClienteService;
 import com.hady.saas.domain.anamnese.RespostaAnamnese;
 import com.hady.saas.domain.enums.Plano;
-import com.hady.saas.domain.usuario.Usuario;
+import com.hady.saas.domain.estabelecimento.Estabelecimento;
+import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
+import com.hady.saas.infrastructure.security.AuthUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -24,91 +25,99 @@ import java.util.Map;
 public class AnamneseController {
 
     private final AnamneseService anamneseService;
-    private final UsuarioService usuarioService;
+    private final ClienteService clienteService;
+    private final EstabelecimentoRepository estabelecimentoRepository;
+    private final AuthUtil authUtil;
 
-    public AnamneseController(AnamneseService anamneseService, UsuarioService usuarioService) {
+    public AnamneseController(AnamneseService anamneseService,
+                              ClienteService clienteService,
+                              EstabelecimentoRepository estabelecimentoRepository,
+                              AuthUtil authUtil) {
         this.anamneseService = anamneseService;
-        this.usuarioService = usuarioService;
+        this.clienteService = clienteService;
+        this.estabelecimentoRepository = estabelecimentoRepository;
+        this.authUtil = authUtil;
     }
 
-    // GET /painel/anamnese/perguntas — lista todas as perguntas
     @GetMapping("/perguntas")
-    public ResponseEntity<List<PerguntaAnamnese>> listarPerguntas(
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        return ResponseEntity.ok(anamneseService.listarTodasPerguntas(
-                usuario.getEstabelecimento().getId()));
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<List<PerguntaAnamneseResposta>> listarPerguntas(Authentication auth) {
+        List<PerguntaAnamneseResposta> perguntas = anamneseService
+                .listarTodasPerguntas(authUtil.getEstabelecimentoId(auth))
+                .stream()
+                .map(PerguntaAnamneseResposta::new)
+                .toList();
+        return ResponseEntity.ok(perguntas);
     }
 
-    // POST /painel/anamnese/perguntas — cria pergunta
-    // Standard/Elite: ADMIN e FUNCIONARIO | Platinum: só ADMIN
     @PostMapping("/perguntas")
-    public ResponseEntity<String> criarPergunta(@Valid @RequestBody PerguntaAnamneseDTO dto,
-                                                 @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        validarPermissaoEdicao(usuario);
-
-        anamneseService.criarPergunta(
-                dto.getTexto(),
-                dto.getTipo(),
-                dto.getOrdem(),
-                usuario.getEstabelecimento()
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<PerguntaAnamneseResposta> criarPergunta(@Valid @RequestBody PerguntaAnamneseDTO dto,
+                                                                  Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        validarPermissaoEdicao(auth, estabelecimentoId);
+        Estabelecimento estab = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+        PerguntaAnamneseResposta criada = new PerguntaAnamneseResposta(
+                anamneseService.criarPergunta(dto.getTexto(), dto.getTipo(), dto.getOrdem(), estab)
         );
-
-        return ResponseEntity.ok("Pergunta criada!");
+        return ResponseEntity.ok(criada);
     }
 
-    // PUT /painel/anamnese/perguntas/{id} — edita pergunta
     @PutMapping("/perguntas/{id}")
-    public ResponseEntity<String> editarPergunta(@PathVariable Long id,
-                                                  @Valid @RequestBody PerguntaAnamneseDTO dto,
-                                                  @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        validarPermissaoEdicao(usuario);
-
-        anamneseService.editarPergunta(
-                id,
-                dto.getTexto(),
-                dto.getTipo(),
-                dto.getOrdem(),
-                usuario.getEstabelecimento().getId()
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<PerguntaAnamneseResposta> editarPergunta(@PathVariable Long id,
+                                                                   @Valid @RequestBody PerguntaAnamneseDTO dto,
+                                                                   Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        validarPermissaoEdicao(auth, estabelecimentoId);
+        PerguntaAnamneseResposta atualizada = new PerguntaAnamneseResposta(
+                anamneseService.editarPergunta(id, dto.getTexto(), dto.getTipo(), dto.getOrdem(), estabelecimentoId)
         );
-
-        return ResponseEntity.ok("Pergunta atualizada!");
+        return ResponseEntity.ok(atualizada);
     }
 
-    // DELETE /painel/anamnese/perguntas/{id} — desativa pergunta
-    @DeleteMapping("/perguntas/{id}")
-    public ResponseEntity<String> desativarPergunta(@PathVariable Long id,
-                                                     @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-        validarPermissaoEdicao(usuario);
-        anamneseService.desativarPergunta(id, usuario.getEstabelecimento().getId());
+    @PatchMapping("/perguntas/{id}/desativar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<String> desativarPergunta(@PathVariable Long id, Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        validarPermissaoEdicao(auth, estabelecimentoId);
+        anamneseService.desativarPergunta(id, estabelecimentoId);
         return ResponseEntity.ok("Pergunta desativada!");
     }
 
-    // GET /painel/anamnese/cliente/{clienteId} — vê anamnese do cliente
-    // Disponível para todos os usuários logados
+    @PatchMapping("/perguntas/{id}/ativar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<String> ativarPergunta(@PathVariable Long id, Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        validarPermissaoEdicao(auth, estabelecimentoId);
+        anamneseService.ativarPergunta(id, estabelecimentoId);
+        return ResponseEntity.ok("Pergunta ativada!");
+    }
+
+    @DeleteMapping("/perguntas/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<String> excluirPergunta(@PathVariable Long id, Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        validarPermissaoEdicao(auth, estabelecimentoId);
+        anamneseService.excluirPergunta(id, estabelecimentoId);
+        return ResponseEntity.ok("Pergunta excluída!");
+    }
+
     @GetMapping("/cliente/{clienteId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
     public ResponseEntity<List<RespostaAnamnese>> verAnamnese(@PathVariable Long clienteId,
-                                                               @AuthenticationPrincipal UserDetails userDetails) {
-        usuarioService.buscarPorEmail(userDetails.getUsername()); // valida autenticação
+                                                              Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        clienteService.buscarPorId(clienteId, estabelecimentoId);
         return ResponseEntity.ok(anamneseService.buscarRespostasCliente(clienteId));
     }
 
-    // PUT /painel/anamnese/cliente/{clienteId} — usuário edita respostas do cliente
     @PutMapping("/cliente/{clienteId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<String> editarAnamnese(@PathVariable Long clienteId,
-                                                  @RequestBody PreencherAnamneseDTO dto,
-                                                  @AuthenticationPrincipal UserDetails userDetails) {
-
-        Usuario usuario = usuarioService.buscarPorEmail(userDetails.getUsername());
-
-        // Converte DTO para Map que o service espera
+                                                 @RequestBody PreencherAnamneseDTO dto,
+                                                 Authentication auth) {
         Map<Long, AnamneseService.RespostaDTO> respostas = new HashMap<>();
         dto.getRespostas().forEach((perguntaId, item) -> {
             AnamneseService.RespostaDTO respostaDTO = new AnamneseService.RespostaDTO();
@@ -116,18 +125,17 @@ public class AnamneseController {
             respostaDTO.setDetalhe(item.getDetalhe());
             respostas.put(perguntaId, respostaDTO);
         });
-
-        anamneseService.editarRespostas(clienteId, respostas, usuario.getEstabelecimento().getId());
+        anamneseService.editarRespostas(clienteId, respostas, authUtil.getEstabelecimentoId(auth));
         return ResponseEntity.ok("Anamnese atualizada!");
     }
 
-    // Valida permissão de edição de perguntas baseado no plano
-    // Platinum: só ADMIN | Standard/Elite: ADMIN e FUNCIONARIO
-    private void validarPermissaoEdicao(Usuario usuario) {
-        boolean isPlatinum = usuario.getEstabelecimento().getPlano() == Plano.PLATINUM;
-        boolean isFuncionario = usuario.getRole().name().equals("FUNCIONARIO") ||
-                                usuario.getRole().name().equals("FUNCIONARIO_TOP");
-
+    private void validarPermissaoEdicao(Authentication auth, Long estabelecimentoId) {
+        Estabelecimento estab = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+        boolean isPlatinum = estab.getPlano() == Plano.PLATINUM;
+        boolean isFuncionario = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_GERENTE") ||
+                        a.getAuthority().equals("ROLE_PROFISSIONAL"));
         if (isPlatinum && isFuncionario) {
             throw new RuntimeException("No plano Platinum apenas o ADMIN pode editar a anamnese");
         }

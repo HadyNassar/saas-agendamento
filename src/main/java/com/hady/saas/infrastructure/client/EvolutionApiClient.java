@@ -1,5 +1,7 @@
 package com.hady.saas.infrastructure.client;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -9,6 +11,8 @@ import java.util.Map;
 
 @Component
 public class EvolutionApiClient {
+
+    private static final Logger log = LoggerFactory.getLogger(EvolutionApiClient.class);
 
     private final RestTemplate restTemplate;
 
@@ -22,16 +26,12 @@ public class EvolutionApiClient {
         this.restTemplate = new RestTemplate();
     }
 
-    // ─── Headers padrão ───────────────────────────────────────────────────────
-
     private HttpHeaders headers() {
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);
         h.set("apikey", apiKey);
         return h;
     }
-
-    // ─── Instância ────────────────────────────────────────────────────────────
 
     public void criarInstancia(String instanceName) {
         String url = baseUrl + "/instance/create";
@@ -81,25 +81,16 @@ public class EvolutionApiClient {
             String url = baseUrl + "/instance/delete/" + instanceName;
             restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headers()), Map.class);
         } catch (Exception e) {
-            System.err.println("Erro ao deletar instância " + instanceName + ": " + e.getMessage());
+            log.error("[EvolutionAPI] Falha ao deletar instância '{}': {}", instanceName, e.getMessage(), e);
         }
     }
 
-    // ─── Mensagens ────────────────────────────────────────────────────────────
-
-    /**
-     * Envia mensagem de texto via WhatsApp.
-     * Evolution API v1.8.2 exige o formato:
-     * { "number": "5567...", "textMessage": { "text": "..." } }
-     */
     public void enviarMensagem(String instanceName, String telefone, String mensagem) {
         String url = baseUrl + "/message/sendText/" + instanceName;
 
-        // Garante DDI 55 (Brasil) e remove qualquer não-dígito
         String numero = telefone.replaceAll("\\D", "");
         if (!numero.startsWith("55")) numero = "55" + numero;
 
-        // ✅ FIX: formato correto para Evolution API v1.8.2
         Map<String, Object> body = Map.of(
                 "number", numero,
                 "textMessage", Map.of("text", mensagem)

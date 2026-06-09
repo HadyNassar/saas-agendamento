@@ -32,10 +32,10 @@ public class AgendamentoPublicoController {
     private final AgendamentoService agendamentoService;
 
     public AgendamentoPublicoController(EstabelecimentoRepository estabelecimentoRepository,
-                                         ProfissionalService profissionalService,
-                                         ServicoService servicoService,
-                                         ClienteService clienteService,
-                                         AgendamentoService agendamentoService) {
+                                        ProfissionalService profissionalService,
+                                        ServicoService servicoService,
+                                        ClienteService clienteService,
+                                        AgendamentoService agendamentoService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.profissionalService = profissionalService;
         this.servicoService = servicoService;
@@ -43,16 +43,18 @@ public class AgendamentoPublicoController {
         this.agendamentoService = agendamentoService;
     }
 
-    // GET /app/{slug}/configuracoes — dados públicos do estabelecimento
-    // Usado pelo frontend para saber o limite de meses de antecipação
+    // GET /app/{slug}/configuracoes
     @GetMapping("/configuracoes")
     public ResponseEntity<Map<String, Object>> configuracoesPublicas(@PathVariable String slug) {
         Estabelecimento est = buscarEstabelecimento(slug);
-
         Map<String, Object> cfg = new HashMap<>();
         cfg.put("nome", est.getNome());
         cfg.put("mesesAntecipacao", est.getMesesAntecipacao());
-
+        // ── campos de pagamento/sinal necessários pelo frontend público ──
+        cfg.put("aceitaPagamento", est.isAceitaPagamento());
+        cfg.put("exigirSinal", est.isExigirSinal());
+        cfg.put("tipoSinal", est.getTipoSinal());
+        cfg.put("valorSinal", est.getValorSinal());
         return ResponseEntity.ok(cfg);
     }
 
@@ -64,13 +66,29 @@ public class AgendamentoPublicoController {
     }
 
     // GET /app/{slug}/servicos
+    // Aceita ?profissionalId={id} opcional.
+    // Com profissionalId: retorna só os serviços que AQUELE profissional realiza (relação N×N).
+    // Sem profissionalId: fallback — retorna todos os serviços ativos (compatibilidade).
     @GetMapping("/servicos")
-    public ResponseEntity<?> listarServicos(@PathVariable String slug) {
+    public ResponseEntity<?> listarServicos(
+            @PathVariable String slug,
+            @RequestParam(required = false) Long profissionalId) {
+
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
+
+        if (profissionalId != null) {
+            // N×N: o mesmo serviço pode aparecer para vários profissionais;
+            // aqui filtramos só os que ESTE profissional sabe fazer
+            return ResponseEntity.ok(
+                    profissionalService.listarServicosDoProfissional(profissionalId, estabelecimento.getId())
+            );
+        }
+
+        // Fallback: todos os serviços ativos do estabelecimento
         return ResponseEntity.ok(servicoService.listarAtivos(estabelecimento.getId()));
     }
 
-    // GET /app/{slug}/disponibilidade?profissionalId=1&servicoId=1&dia=2026-05-20
+    // GET /app/{slug}/disponibilidade — retorna apenas slots LIVRES (mantido para compatibilidade)
     @GetMapping("/disponibilidade")
     public ResponseEntity<List<LocalTime>> disponibilidade(
             @PathVariable String slug,
@@ -87,10 +105,40 @@ public class AgendamentoPublicoController {
         return ResponseEntity.ok(slots);
     }
 
+    // GET /app/{slug}/todos-slots — retorna TODOS os slots com disponivel: true/false
+    // Usado pelo calendário visual para mostrar ocupados em vermelho
+    @GetMapping("/todos-slots")
+    public ResponseEntity<List<Map<String, Object>>> todosSlots(
+            @PathVariable String slug,
+            @RequestParam Long profissionalId,
+            @RequestParam Long servicoId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia) {
+
+        Estabelecimento estabelecimento = buscarEstabelecimento(slug);
+        Servico servico = servicoService.buscarPorId(servicoId, estabelecimento.getId());
+
+        // slots livres
+        List<LocalTime> livres = agendamentoService.gerarSlotsDisponiveis(
+                profissionalId, estabelecimento.getId(), dia, servico.getDuracaoMinutos());
+
+        // todos os slots (livres + ocupados)
+        List<LocalTime> todos = agendamentoService.gerarTodosSlots(
+                profissionalId, estabelecimento.getId(), dia, servico.getDuracaoMinutos());
+
+        List<Map<String, Object>> resultado = todos.stream().map(slot -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("horario", slot.toString());
+            m.put("disponivel", livres.contains(slot));
+            return m;
+        }).toList();
+
+        return ResponseEntity.ok(resultado);
+    }
+
     // POST /app/{slug}/agendar
     @PostMapping("/agendar")
-    public ResponseEntity<String> agendar(@PathVariable String slug,
-                                           @Valid @RequestBody AgendamentoPublicoDTO dto) {
+    public ResponseEntity<Map<String, Object>> agendar(@PathVariable String slug,
+                                                       @Valid @RequestBody AgendamentoPublicoDTO dto) {
 
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
 
@@ -104,9 +152,19 @@ public class AgendamentoPublicoController {
         Profissional profissional = profissionalService.buscarPorId(dto.getProfissionalId(), estabelecimento.getId());
         Servico servico = servicoService.buscarPorId(dto.getServicoId(), estabelecimento.getId());
 
-        agendamentoService.agendarPeloCliente(cliente, profissional, servico, estabelecimento, dto.getDataHoraInicio());
+        if (!estabelecimento.temAcesso()) {
+            throw new RuntimeException("Este estabelecimento não está aceitando agendamentos no momento.");
+        }
 
-        return ResponseEntity.ok("Agendamento realizado com sucesso!");
+        var agendamento = agendamentoService.agendarPeloCliente(
+                cliente, profissional, servico, estabelecimento,
+                dto.getDataHoraInicio(), dto.isAguardandoPagamento()
+        );
+
+        return ResponseEntity.ok(Map.of(
+                "agendamentoId", agendamento.getId(),
+                "mensagem", "Agendamento realizado com sucesso!"
+        ));
     }
 
     private Estabelecimento buscarEstabelecimento(String slug) {
