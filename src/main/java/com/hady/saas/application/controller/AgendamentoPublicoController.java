@@ -155,6 +155,7 @@ public class AgendamentoPublicoController {
 
         return ResponseEntity.ok(Map.of(
                 "agendamentoId", agendamento.getId(),
+                "clienteId", cliente.getId(),
                 "mensagem", "Agendamento realizado com sucesso!"
         ));
     }
