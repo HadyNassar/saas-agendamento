@@ -19,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @RestController
@@ -33,11 +34,11 @@ public class AgendamentoController {
     private final AuthUtil authUtil;
 
     public AgendamentoController(AgendamentoService agendamentoService,
-                                  ClienteService clienteService,
-                                  ProfissionalService profissionalService,
-                                  ServicoService servicoService,
-                                  EstabelecimentoRepository estabelecimentoRepository,
-                                  AuthUtil authUtil) {
+                                 ClienteService clienteService,
+                                 ProfissionalService profissionalService,
+                                 ServicoService servicoService,
+                                 EstabelecimentoRepository estabelecimentoRepository,
+                                 AuthUtil authUtil) {
         this.agendamentoService = agendamentoService;
         this.clienteService = clienteService;
         this.profissionalService = profissionalService;
@@ -55,7 +56,6 @@ public class AgendamentoController {
         CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
         List<Agendamento> agendamentos;
 
-        // PROFISSIONAL só vê os próprios agendamentos
         boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_PROFISSIONAL"));
 
@@ -69,10 +69,28 @@ public class AgendamentoController {
         return ResponseEntity.ok(agendamentos.stream().map(AgendamentoResponseDTO::de).toList());
     }
 
+    // ─── Disponibilidade de horários para agendamento pelo painel ────────────
+    @GetMapping("/disponibilidade")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<List<LocalTime>> disponibilidade(
+            @RequestParam Long profissionalId,
+            @RequestParam Long servicoId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
+            Authentication auth) {
+
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        Servico servico = servicoService.buscarPorId(servicoId, estabelecimentoId);
+
+        List<LocalTime> slots = agendamentoService.gerarSlotsDisponiveis(
+                profissionalId, estabelecimentoId, dia, servico.getDuracaoMinutos());
+
+        return ResponseEntity.ok(slots);
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
     public ResponseEntity<String> agendar(@Valid @RequestBody AgendamentoPainelDTO dto,
-                                           Authentication auth) {
+                                          Authentication auth) {
 
         Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
         CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
@@ -80,7 +98,6 @@ public class AgendamentoController {
         Estabelecimento estabelecimento = estabelecimentoRepository.findById(estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
-        // PROFISSIONAL só pode criar agendamentos na própria agenda.
         boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_PROFISSIONAL"));
 
@@ -124,8 +141,6 @@ public class AgendamentoController {
         return ResponseEntity.ok("Falta registrada!");
     }
 
-    // PROFISSIONAL só pode operar em agendamentos da própria agenda.
-    // ADMIN e GERENTE podem operar em qualquer agendamento do estabelecimento.
     private void validarAcessoAgendamento(Long agendamentoId, Authentication auth) {
         CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
         boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
