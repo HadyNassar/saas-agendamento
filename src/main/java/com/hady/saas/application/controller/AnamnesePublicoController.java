@@ -1,6 +1,7 @@
 package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.PreencherAnamneseDTO;
+import com.hady.saas.application.dto.PerguntaAnamneseResposta;
 import com.hady.saas.business.service.AnamneseService;
 import com.hady.saas.domain.anamnese.PerguntaAnamnese;
 import com.hady.saas.domain.cliente.Cliente;
@@ -22,8 +23,8 @@ public class AnamnesePublicoController {
     private final AnamneseService anamneseService;
 
     public AnamnesePublicoController(EstabelecimentoRepository estabelecimentoRepository,
-                                      ClienteService clienteService,
-                                      AnamneseService anamneseService) {
+                                     ClienteService clienteService,
+                                     AnamneseService anamneseService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.clienteService = clienteService;
         this.anamneseService = anamneseService;
@@ -39,7 +40,7 @@ public class AnamnesePublicoController {
     // GET /app/{slug}/anamnese/status/{clienteId} — verifica se cliente já preencheu
     @GetMapping("/status/{clienteId}")
     public ResponseEntity<Boolean> verificarStatus(@PathVariable String slug,
-                                                    @PathVariable Long clienteId) {
+                                                   @PathVariable Long clienteId) {
         buscarEstabelecimento(slug); // valida o estabelecimento
         return ResponseEntity.ok(anamneseService.clienteJaPreencheu(clienteId));
     }
@@ -47,8 +48,8 @@ public class AnamnesePublicoController {
     // POST /app/{slug}/anamnese/{clienteId} — cliente preenche anamnese (só uma vez)
     @PostMapping("/{clienteId}")
     public ResponseEntity<String> preencher(@PathVariable String slug,
-                                             @PathVariable Long clienteId,
-                                             @RequestBody PreencherAnamneseDTO dto) {
+                                            @PathVariable Long clienteId,
+                                            @RequestBody PreencherAnamneseDTO dto) {
 
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
         Cliente cliente = clienteService.buscarPorId(clienteId, estabelecimento.getId());
