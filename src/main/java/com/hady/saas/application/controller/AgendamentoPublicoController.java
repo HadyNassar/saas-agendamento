@@ -1,6 +1,7 @@
 package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.AgendamentoPublicoDTO;
+import com.hady.saas.application.dto.ProfissionalPublicoDTO;
 import com.hady.saas.business.service.AgendamentoService;
 import com.hady.saas.business.service.ClienteService;
 import com.hady.saas.business.service.ProfissionalService;
@@ -50,7 +51,6 @@ public class AgendamentoPublicoController {
         Map<String, Object> cfg = new HashMap<>();
         cfg.put("nome", est.getNome());
         cfg.put("mesesAntecipacao", est.getMesesAntecipacao());
-        // ── campos de pagamento/sinal necessários pelo frontend público ──
         cfg.put("aceitaPagamento", est.isAceitaPagamento());
         cfg.put("exigirSinal", est.isExigirSinal());
         cfg.put("tipoSinal", est.getTipoSinal());
@@ -60,15 +60,13 @@ public class AgendamentoPublicoController {
 
     // GET /app/{slug}/profissionais
     @GetMapping("/profissionais")
-    public ResponseEntity<?> listarProfissionais(@PathVariable String slug) {
+    public ResponseEntity<List<ProfissionalPublicoDTO>> listarProfissionais(@PathVariable String slug) {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
-        return ResponseEntity.ok(profissionalService.listarAtivos(estabelecimento.getId()));
+        List<Profissional> profissionais = profissionalService.listarAtivos(estabelecimento.getId());
+        return ResponseEntity.ok(profissionais.stream().map(ProfissionalPublicoDTO::de).toList());
     }
 
     // GET /app/{slug}/servicos
-    // Aceita ?profissionalId={id} opcional.
-    // Com profissionalId: retorna só os serviços que AQUELE profissional realiza (relação N×N).
-    // Sem profissionalId: fallback — retorna todos os serviços ativos (compatibilidade).
     @GetMapping("/servicos")
     public ResponseEntity<?> listarServicos(
             @PathVariable String slug,
@@ -77,18 +75,15 @@ public class AgendamentoPublicoController {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
 
         if (profissionalId != null) {
-            // N×N: o mesmo serviço pode aparecer para vários profissionais;
-            // aqui filtramos só os que ESTE profissional sabe fazer
             return ResponseEntity.ok(
                     profissionalService.listarServicosDoProfissional(profissionalId, estabelecimento.getId())
             );
         }
 
-        // Fallback: todos os serviços ativos do estabelecimento
         return ResponseEntity.ok(servicoService.listarAtivos(estabelecimento.getId()));
     }
 
-    // GET /app/{slug}/disponibilidade — retorna apenas slots LIVRES (mantido para compatibilidade)
+    // GET /app/{slug}/disponibilidade
     @GetMapping("/disponibilidade")
     public ResponseEntity<List<LocalTime>> disponibilidade(
             @PathVariable String slug,
@@ -105,8 +100,7 @@ public class AgendamentoPublicoController {
         return ResponseEntity.ok(slots);
     }
 
-    // GET /app/{slug}/todos-slots — retorna TODOS os slots com disponivel: true/false
-    // Usado pelo calendário visual para mostrar ocupados em vermelho
+    // GET /app/{slug}/todos-slots
     @GetMapping("/todos-slots")
     public ResponseEntity<List<Map<String, Object>>> todosSlots(
             @PathVariable String slug,
@@ -117,11 +111,9 @@ public class AgendamentoPublicoController {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
         Servico servico = servicoService.buscarPorId(servicoId, estabelecimento.getId());
 
-        // slots livres
         List<LocalTime> livres = agendamentoService.gerarSlotsDisponiveis(
                 profissionalId, estabelecimento.getId(), dia, servico.getDuracaoMinutos());
 
-        // todos os slots (livres + ocupados)
         List<LocalTime> todos = agendamentoService.gerarTodosSlots(
                 profissionalId, estabelecimento.getId(), dia, servico.getDuracaoMinutos());
 
