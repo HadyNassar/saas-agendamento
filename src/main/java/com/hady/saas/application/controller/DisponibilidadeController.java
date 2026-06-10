@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/painel/disponibilidade")
@@ -30,9 +32,11 @@ public class DisponibilidadeController {
         this.authUtil = authUtil;
     }
 
+    // Retorna todos os slots com disponivel: true/false
+    // O frontend usa isso para mostrar ocupados em vermelho e disponíveis em verde
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
-    public ResponseEntity<List<LocalTime>> disponibilidade(
+    public ResponseEntity<List<Map<String, Object>>> disponibilidade(
             @RequestParam Long profissionalId,
             @RequestParam Long servicoId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dia,
@@ -41,9 +45,21 @@ public class DisponibilidadeController {
         Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
         Servico servico = servicoService.buscarPorId(servicoId, estabelecimentoId);
 
-        List<LocalTime> slots = agendamentoService.gerarSlotsDisponiveis(
+        // Slots livres
+        List<LocalTime> livres = agendamentoService.gerarSlotsDisponiveis(
                 profissionalId, estabelecimentoId, dia, servico.getDuracaoMinutos());
 
-        return ResponseEntity.ok(slots);
+        // Todos os slots (livres + ocupados)
+        List<LocalTime> todos = agendamentoService.gerarTodosSlots(
+                profissionalId, estabelecimentoId, dia, servico.getDuracaoMinutos());
+
+        List<Map<String, Object>> resultado = todos.stream().map(slot -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("horario", slot.toString());
+            m.put("disponivel", livres.contains(slot));
+            return m;
+        }).toList();
+
+        return ResponseEntity.ok(resultado);
     }
 }
