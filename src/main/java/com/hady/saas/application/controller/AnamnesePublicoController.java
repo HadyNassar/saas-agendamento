@@ -3,7 +3,6 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.PreencherAnamneseDTO;
 import com.hady.saas.application.dto.PerguntaAnamneseResposta;
 import com.hady.saas.business.service.AnamneseService;
-import com.hady.saas.domain.anamnese.PerguntaAnamnese;
 import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
@@ -32,16 +31,21 @@ public class AnamnesePublicoController {
 
     // GET /app/{slug}/anamnese/perguntas — lista perguntas ativas para o cliente responder
     @GetMapping("/perguntas")
-    public ResponseEntity<List<PerguntaAnamnese>> listarPerguntas(@PathVariable String slug) {
+    public ResponseEntity<List<PerguntaAnamneseResposta>> listarPerguntas(@PathVariable String slug) {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
-        return ResponseEntity.ok(anamneseService.listarPerguntasAtivas(estabelecimento.getId()));
+        List<PerguntaAnamneseResposta> perguntas = anamneseService
+                .listarPerguntasAtivas(estabelecimento.getId())
+                .stream()
+                .map(PerguntaAnamneseResposta::new)
+                .toList();
+        return ResponseEntity.ok(perguntas);
     }
 
     // GET /app/{slug}/anamnese/status/{clienteId} — verifica se cliente já preencheu
     @GetMapping("/status/{clienteId}")
     public ResponseEntity<Boolean> verificarStatus(@PathVariable String slug,
                                                    @PathVariable Long clienteId) {
-        buscarEstabelecimento(slug); // valida o estabelecimento
+        buscarEstabelecimento(slug);
         return ResponseEntity.ok(anamneseService.clienteJaPreencheu(clienteId));
     }
 
@@ -54,7 +58,6 @@ public class AnamnesePublicoController {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
         Cliente cliente = clienteService.buscarPorId(clienteId, estabelecimento.getId());
 
-        // Converte DTO para Map que o service espera
         Map<Long, AnamneseService.RespostaDTO> respostas = new HashMap<>();
         dto.getRespostas().forEach((perguntaId, item) -> {
             AnamneseService.RespostaDTO respostaDTO = new AnamneseService.RespostaDTO();
