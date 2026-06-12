@@ -1,6 +1,7 @@
 package com.hady.saas.webhook;
 
 import com.hady.saas.infrastructure.config.MercadoPagoConfiguration;
+import com.hady.saas.infrastructure.repository.TransacaoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
@@ -24,13 +25,16 @@ public class MercadoPagoWebhook {
     private final MercadoPagoConfiguration mpConfig;
     private final RestTemplate restTemplate;
     private final WebhookProcessorService webhookProcessor;
+    private final TransacaoRepository transacaoRepo;
 
     public MercadoPagoWebhook(MercadoPagoConfiguration mpConfig,
                               RestTemplate restTemplate,
-                              WebhookProcessorService webhookProcessor) {
+                              WebhookProcessorService webhookProcessor,
+                              TransacaoRepository transacaoRepo) {
         this.mpConfig = mpConfig;
         this.restTemplate = restTemplate;
         this.webhookProcessor = webhookProcessor;
+        this.transacaoRepo = transacaoRepo;
     }
 
     @PostMapping
@@ -60,13 +64,28 @@ public class MercadoPagoWebhook {
 
             switch (type) {
                 case "subscription_preapproval" -> {
-                    Map<String, Object> sub = buscarRecursoMP("/preapproval/" + dataId);
+                    Map<String, Object> sub = buscarRecursoMP("/preapproval/" + dataId, mpConfig.getAccessToken());
                     if (sub != null) {
                         webhookProcessor.atualizarStatusPlano(dataId, (String) sub.get("status"));
                     }
                 }
                 case "payment" -> {
-                    Map<String, Object> payment = buscarRecursoMP("/v1/payments/" + dataId);
+                    // Busca a transação para descobrir qual estabelecimento (e qual
+                    // token OAuth) é dono deste pagamento — o pagamento foi criado
+                    // na conta do estabelecimento via split, não na conta principal.
+                    String tokenConsulta = mpConfig.getAccessToken();
+                    var transacaoOpt = transacaoRepo.findByMpPaymentId(dataId);
+                    if (transacaoOpt.isPresent()) {
+                        String tokenEstab = transacaoOpt.get().getEstabelecimento().getMpAccessToken();
+                        if (tokenEstab != null && !tokenEstab.isBlank()) {
+                            tokenConsulta = tokenEstab;
+                        }
+                    } else {
+                        log.warn("[Webhook MP] Transação não encontrada para mpPaymentId={} — " +
+                                "consultando com token padrão (pode falhar 403/404)", dataId);
+                    }
+
+                    Map<String, Object> payment = buscarRecursoMP("/v1/payments/" + dataId, tokenConsulta);
                     if (payment != null) {
                         webhookProcessor.atualizarStatusTransacao(dataId, (String) payment.get("status"));
                     }
@@ -138,10 +157,10 @@ public class MercadoPagoWebhook {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> buscarRecursoMP(String path) {
+    private Map<String, Object> buscarRecursoMP(String path, String accessToken) {
         try {
             HttpHeaders headers = new HttpHeaders();
-            headers.setBearerAuth(mpConfig.getAccessToken());
+            headers.setBearerAuth(accessToken);
             HttpEntity<Void> request = new HttpEntity<>(headers);
             ResponseEntity<Map> response = restTemplate.exchange(
                     MP_API + path, HttpMethod.GET, request, Map.class);
