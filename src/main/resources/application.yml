@@ -64,8 +64,9 @@ mercadopago:
   access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
   app-id: ${MERCADOPAGO_APP_ID:}
   client-secret: ${MERCADOPAGO_CLIENT_SECRET:}
-  redirect-uri: ${MERCADOPAGO_REDIRECT_URI:https://oagendara.com.br/painel/mercadopago/callback}
+  redirect-uri: ${MERCADOPAGO_REDIRECT_URI:https://api.oagendara.com.br/painel/mercadopago/callback}
   webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
+  webhook-secret-marketplace: ${MERCADOPAGO_WEBHOOK_SECRET_MARKETPLACE:}
   planos:
     standard: ${MERCADOPAGO_PLANOS_STANDARD:}
     elite: ${MERCADOPAGO_PLANOS_ELITE:}
