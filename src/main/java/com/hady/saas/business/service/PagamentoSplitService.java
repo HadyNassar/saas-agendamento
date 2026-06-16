@@ -63,10 +63,33 @@ public class PagamentoSplitService {
             throw new RuntimeException("Este estabelecimento não aceita pagamento online.");
         }
 
-        // Calcula o split
-        BigDecimal valorTotal           = agendamento.getServico().getPreco();
+        // Calcula o valor a cobrar: sinal (fixo ou %) ou valor total do serviço
+        BigDecimal precoServico = agendamento.getServico().getPreco();
+        BigDecimal valorTotal;
+
+        if (estab.isExigirSinal() && estab.getValorSinal() != null) {
+            if ("percentual".equals(estab.getTipoSinal())) {
+                // Sinal percentual: ex. 50% de R$50 = R$25
+                valorTotal = precoServico
+                        .multiply(estab.getValorSinal())
+                        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+            } else {
+                // Sinal fixo: ex. R$1,00
+                valorTotal = estab.getValorSinal().setScale(2, RoundingMode.HALF_UP);
+            }
+            // Garante que o sinal não ultrapasse o preço do serviço
+            if (valorTotal.compareTo(precoServico) > 0) {
+                valorTotal = precoServico;
+            }
+        } else {
+            valorTotal = precoServico;
+        }
+
         BigDecimal taxa                 = valorTotal.multiply(TAXA_PLATAFORMA).setScale(2, RoundingMode.HALF_UP);
         BigDecimal valorEstabelecimento = valorTotal.subtract(taxa);
+
+        log.info("[PagamentoSplit] Valor a cobrar: {} (sinal={} tipo={} valorSinal={})",
+                valorTotal, estab.isExigirSinal(), estab.getTipoSinal(), estab.getValorSinal());
 
         // Monta o body do pagamento
         Map<String, Object> body = new HashMap<>();
