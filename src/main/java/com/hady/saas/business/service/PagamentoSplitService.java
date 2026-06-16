@@ -87,6 +87,7 @@ public class PagamentoSplitService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(estab.getMpAccessToken());
+        headers.set("X-Idempotency-Key", java.util.UUID.randomUUID().toString());
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
@@ -188,6 +189,7 @@ public class PagamentoSplitService {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(transacao.getEstabelecimento().getMpAccessToken());
+        headers.set("X-Idempotency-Key", java.util.UUID.randomUUID().toString());
         HttpEntity<Void> request = new HttpEntity<>(headers);
 
         ResponseEntity<Map> response = restTemplate.exchange(
