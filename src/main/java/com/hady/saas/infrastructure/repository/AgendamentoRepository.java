@@ -138,6 +138,15 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
             @Param("fim") LocalDateTime fim,
             @Param("limiteEnvio") LocalDateTime limiteEnvio);
 
+    // ── CLEANUP: agendamentos aguardando pagamento expirados ──────────────────
+    @Query("""
+        SELECT a FROM Agendamento a
+        JOIN FETCH a.estabelecimento
+        WHERE a.status = com.hady.saas.domain.enums.StatusAgendamento.AGUARDANDO_PAGAMENTO
+          AND a.criadoEm < :limite
+    """)
+    List<Agendamento> findAguardandoPagamentoAntesDe(@Param("limite") LocalDateTime limite);
+
     // ── RELATÓRIO FINANCEIRO ──────────────────────────────────────────────────
     @Query("""
         SELECT a FROM Agendamento a
