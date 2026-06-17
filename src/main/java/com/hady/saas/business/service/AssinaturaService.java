@@ -68,7 +68,7 @@ public class AssinaturaService {
         body.put("card_token_id", dto.getCardToken());
         body.put("status", "authorized");
 
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headersComToken(mpConfig.getAccessToken()));
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headersComToken(mpConfig.getAccessTokenAssinaturas()));
         ResponseEntity<Map> response = restTemplate.postForEntity(MP_API + "/preapproval", request, Map.class);
 
         Map<String, Object> data = response.getBody();
@@ -81,8 +81,8 @@ public class AssinaturaService {
         // Sem essa verificação, um status "pending" ativaria o plano gratuitamente.
         if (!"authorized".equals(status)) {
             throw new RuntimeException(
-                "Assinatura criada no Mercado Pago mas não foi autorizada (status=" + status +
-                "). Verifique os dados do cartão e tente novamente.");
+                    "Assinatura criada no Mercado Pago mas não foi autorizada (status=" + status +
+                            "). Verifique os dados do cartão e tente novamente.");
         }
 
         // Nova assinatura autorizada — agora cancela a antiga com segurança.
@@ -138,7 +138,7 @@ public class AssinaturaService {
         if (estab.getMpSubscriptionId() == null || !estab.isPlanoAtivo()) {
             throw new RuntimeException(
                     "Nenhuma assinatura recorrente ativa encontrada. " +
-                    "Use /painel/assinatura/recorrente para assinar um plano.");
+                            "Use /painel/assinatura/recorrente para assinar um plano.");
         }
 
         Plano novoPlano = Plano.valueOf(dto.getPlano().toUpperCase());
@@ -157,9 +157,9 @@ public class AssinaturaService {
             if (totalFuncionarios > novoPlano.getLimiteUsuarios()) {
                 throw new RuntimeException(
                         "Não é possível fazer downgrade para o plano " + novoPlano.name() +
-                        " (limite: " + novoPlano.getLimiteUsuarios() + " funcionário(s)). " +
-                        "Você possui " + totalFuncionarios + " funcionário(s) ativo(s). " +
-                        "Desative os funcionários excedentes antes de trocar de plano.");
+                                " (limite: " + novoPlano.getLimiteUsuarios() + " funcionário(s)). " +
+                                "Você possui " + totalFuncionarios + " funcionário(s) ativo(s). " +
+                                "Desative os funcionários excedentes antes de trocar de plano.");
             }
         }
 
@@ -170,9 +170,9 @@ public class AssinaturaService {
             if (totalAdmins > 1) {
                 throw new RuntimeException(
                         "Não é possível fazer downgrade para o plano " + novoPlano.name() +
-                        " pois o estabelecimento possui " + totalAdmins + " ADMINs. " +
-                        "O plano " + novoPlano.name() + " permite apenas 1 ADMIN. " +
-                        "Remova os ADMINs excedentes antes de trocar de plano.");
+                                " pois o estabelecimento possui " + totalAdmins + " ADMINs. " +
+                                "O plano " + novoPlano.name() + " permite apenas 1 ADMIN. " +
+                                "Remova os ADMINs excedentes antes de trocar de plano.");
             }
         }
 
@@ -188,7 +188,7 @@ public class AssinaturaService {
         body.put("status", "authorized");
 
         HttpEntity<Map<String, Object>> request =
-                new HttpEntity<>(body, headersComToken(mpConfig.getAccessToken()));
+                new HttpEntity<>(body, headersComToken(mpConfig.getAccessTokenAssinaturas()));
         ResponseEntity<Map> response =
                 restTemplate.postForEntity(MP_API + "/preapproval", request, Map.class);
 
@@ -204,7 +204,7 @@ public class AssinaturaService {
         if (!"authorized".equals(status)) {
             throw new RuntimeException(
                     "Nova assinatura criada no MP mas não foi autorizada (status=" + status +
-                    "). Assinatura anterior mantida. Entre em contato com o suporte.");
+                            "). Assinatura anterior mantida. Entre em contato com o suporte.");
         }
 
         String assinaturaAntiga = estab.getMpSubscriptionId();
@@ -268,7 +268,7 @@ public class AssinaturaService {
         body.put("payment_method_id", paymentMethodId);
         body.put("payer", Map.of("email", dto.getEmail()));
 
-        HttpHeaders headers = headersComToken(mpConfig.getAccessToken());
+        HttpHeaders headers = headersComToken(mpConfig.getAccessTokenAssinaturas());
         headers.set("X-Idempotency-Key", UUID.randomUUID().toString());
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
@@ -358,7 +358,7 @@ public class AssinaturaService {
     // ─── Helpers ─────────────────────────────────────────────────────────────
     private void cancelarAssinaturaMP(String subscriptionId) {
         Map<String, String> body = Map.of("status", "cancelled");
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headersComToken(mpConfig.getAccessToken()));
+        HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headersComToken(mpConfig.getAccessTokenAssinaturas()));
         restTemplate.exchange(MP_API + "/preapproval/" + subscriptionId, HttpMethod.PUT, request, Map.class);
     }
 

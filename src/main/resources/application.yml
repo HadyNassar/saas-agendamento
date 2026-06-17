@@ -62,6 +62,7 @@ evolution:
 
 mercadopago:
   access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
+  access-token-assinaturas: ${MERCADOPAGO_ACCESS_TOKEN_ASSINATURAS:}
   app-id: ${MERCADOPAGO_APP_ID:}
   client-secret: ${MERCADOPAGO_CLIENT_SECRET:}
   redirect-uri: ${MERCADOPAGO_REDIRECT_URI:https://api.oagendara.com.br/painel/mercadopago/callback}

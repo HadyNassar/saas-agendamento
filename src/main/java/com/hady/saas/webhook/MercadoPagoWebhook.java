@@ -64,7 +64,7 @@ public class MercadoPagoWebhook {
 
             switch (type) {
                 case "subscription_preapproval" -> {
-                    Map<String, Object> sub = buscarRecursoMP("/preapproval/" + dataId, mpConfig.getAccessToken());
+                    Map<String, Object> sub = buscarRecursoMP("/preapproval/" + dataId, mpConfig.getAccessTokenAssinaturas());
                     if (sub != null) {
                         webhookProcessor.atualizarStatusPlano(dataId, (String) sub.get("status"));
                     }

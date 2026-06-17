@@ -3,13 +3,18 @@ package com.hady.saas.infrastructure.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
-// Versão simplificada — não usa mais MercadoPagoConfig.setAccessToken()
-// porque todas as chamadas agora usam RestTemplate com Bearer token direto
 @Configuration
 public class MercadoPagoConfiguration {
 
+    // Token da aplicação de MARKETPLACE (split de pagamentos)
+    // Variável: MERCADOPAGO_ACCESS_TOKEN
     @Value("${mercadopago.access-token}")
     private String accessToken;
+
+    // Token da aplicação de ASSINATURAS (planos mensais)
+    // Variável: MERCADOPAGO_ACCESS_TOKEN_ASSINATURAS
+    @Value("${mercadopago.access-token-assinaturas:}")
+    private String accessTokenAssinaturas;
 
     @Value("${mercadopago.app-id}")
     private String appId;
@@ -20,13 +25,9 @@ public class MercadoPagoConfiguration {
     @Value("${mercadopago.redirect-uri}")
     private String redirectUri;
 
-    // Secret da aplicação de Assinaturas
-    // Variável de ambiente: MERCADOPAGO_WEBHOOK_SECRET
     @Value("${mercadopago.webhook-secret:}")
     private String webhookSecret;
 
-    // Secret da aplicação de Marketplace
-    // Variável de ambiente: MERCADOPAGO_WEBHOOK_SECRET_MARKETPLACE
     @Value("${mercadopago.webhook-secret-marketplace:}")
     private String webhookSecretMarketplace;
 
@@ -39,7 +40,12 @@ public class MercadoPagoConfiguration {
     @Value("${mercadopago.planos.platinum:}")
     private String planoPlatinumId;
 
+    /** Token do Marketplace — usado em split de pagamentos dos clientes */
     public String getAccessToken()               { return accessToken; }
+
+    /** Token de Assinaturas — usado para criar/cancelar planos mensais */
+    public String getAccessTokenAssinaturas()    { return accessTokenAssinaturas; }
+
     public String getAppId()                     { return appId; }
     public String getClientSecret()              { return clientSecret; }
     public String getRedirectUri()               { return redirectUri; }
