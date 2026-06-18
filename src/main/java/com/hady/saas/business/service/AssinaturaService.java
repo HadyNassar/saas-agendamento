@@ -26,6 +26,7 @@ import java.util.UUID;
 @Service
 public class AssinaturaService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AssinaturaService.class);
     private static final String MP_API = "https://api.mercadopago.com";
 
     private final MercadoPagoConfiguration mpConfig;
@@ -90,7 +91,7 @@ public class AssinaturaService {
             try {
                 cancelarAssinaturaMP(assinaturaAntiga);
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(AssinaturaService.class)
+                log
                         .warn("[ASSINAR] Falha ao cancelar assinatura antiga {} no MP (pode já estar cancelada): {}",
                                 assinaturaAntiga, e.getMessage());
             }
@@ -213,7 +214,7 @@ public class AssinaturaService {
         } catch (Exception e) {
             // Loga mas não desfaz — a nova já foi criada e autorizada.
             // A assinatura antiga pode já ter sido cancelada pelo próprio MP.
-            org.slf4j.LoggerFactory.getLogger(AssinaturaService.class)
+            log
                     .warn("[TROCA-PLANO] Falha ao cancelar assinatura antiga {} no MP (pode já estar cancelada): {}",
                             assinaturaAntiga, e.getMessage());
         }
@@ -432,7 +433,7 @@ public class AssinaturaService {
             try {
                 cancelarAssinaturaMP(estab.getMpSubscriptionId());
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(AssinaturaService.class)
+                log
                         .warn("[CANCELAR] Falha ao cancelar assinatura {} no MP (pode já estar cancelada): {}",
                                 estab.getMpSubscriptionId(), e.getMessage());
             }
