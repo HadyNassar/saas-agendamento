@@ -1,10 +1,13 @@
 package com.hady.saas.webhook;
 
+import com.hady.saas.business.service.AssinaturaService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
+import com.hady.saas.infrastructure.repository.CobrancaPlanoRepository;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.repository.TransacaoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +30,17 @@ public class WebhookProcessorService {
 
     private final EstabelecimentoRepository estabelecimentoRepo;
     private final TransacaoRepository transacaoRepo;
+    private final CobrancaPlanoRepository cobrancaRepo;
+    private final AssinaturaService assinaturaService;
 
     public WebhookProcessorService(EstabelecimentoRepository estabelecimentoRepo,
-                                   TransacaoRepository transacaoRepo) {
+                                   TransacaoRepository transacaoRepo,
+                                   CobrancaPlanoRepository cobrancaRepo,
+                                   @Lazy AssinaturaService assinaturaService) {
         this.estabelecimentoRepo = estabelecimentoRepo;
         this.transacaoRepo = transacaoRepo;
+        this.cobrancaRepo = cobrancaRepo;
+        this.assinaturaService = assinaturaService;
     }
 
     @Transactional
@@ -68,6 +77,15 @@ public class WebhookProcessorService {
 
     @Transactional
     public void atualizarStatusTransacao(String mpPaymentId, String mpStatus) {
+        // 1. Verifica se é pagamento PIX de plano (CobrancaPlano)
+        cobrancaRepo.findByMpPaymentId(mpPaymentId).ifPresent(cobranca -> {
+            if ("AVULSO_PIX".equals(cobranca.getTipoCobranca()) && "approved".equals(mpStatus)) {
+                assinaturaService.ativarPlanoViaPix(mpPaymentId);
+                log.info("[Webhook MP] PIX plano aprovado — mpPaymentId={}", mpPaymentId);
+            }
+        });
+
+        // 2. Verifica se é pagamento de agendamento (Transacao)
         transacaoRepo.findByMpPaymentId(mpPaymentId).ifPresent(transacao -> {
             String novoStatus = switch (mpStatus) {
                 case "approved"  -> "APROVADO";

@@ -71,6 +71,15 @@ public class AssinaturaController {
         return ResponseEntity.ok(assinaturaService.pagarAvulso(id, dto));
     }
 
+    // POST /painel/assinatura/avulso-pix
+    @PostMapping("/avulso-pix")
+    public ResponseEntity<Map<String, Object>> pagarAvulsoPix(
+            Authentication auth,
+            @Valid @RequestBody PagamentoAvulsoPlanoDTO dto) {
+        Long id = authUtil.getEstabelecimentoId(auth);
+        return ResponseEntity.ok(assinaturaService.pagarAvulsoPix(id, dto));
+    }
+
     // DELETE /painel/assinatura
     @DeleteMapping
     public ResponseEntity<Void> cancelar(Authentication auth) {

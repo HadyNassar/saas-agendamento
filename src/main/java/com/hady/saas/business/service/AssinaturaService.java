@@ -322,7 +322,107 @@ public class AssinaturaService {
         return result;
     }
 
-    // ─── 4. Cancelar assinatura ──────────────────────────────────────────────
+    // ─── 4. Pagar plano com PIX (avulso) ────────────────────────────────────
+    @Transactional
+    public Map<String, Object> pagarAvulsoPix(Long estabelecimentoId, PagamentoAvulsoPlanoDTO dto) {
+
+        Estabelecimento estab = estabelecimentoRepo.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        Plano plano = Plano.valueOf(dto.getPlano().toUpperCase());
+
+        String email = dto.getPixEmail() != null && !dto.getPixEmail().isBlank()
+                ? dto.getPixEmail() : "pagador@agendara.com.br";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("transaction_amount", plano.getPreco());
+        body.put("description", plano.getDescricao() + " - Mensal");
+        body.put("payment_method_id", "pix");
+        body.put("payer", Map.of("email", email));
+
+        HttpHeaders headers = headersComToken(mpConfig.getAccessTokenAssinaturas());
+        headers.set("X-Idempotency-Key", UUID.randomUUID().toString());
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+        Map<String, Object> data;
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(MP_API + "/v1/payments", request, Map.class);
+            data = response.getBody();
+        } catch (HttpClientErrorException ex) {
+            try {
+                data = objectMapper.readValue(ex.getResponseBodyAsString(), Map.class);
+            } catch (Exception parseEx) {
+                throw new RuntimeException("Erro MP PIX: " + ex.getResponseBodyAsString(), parseEx);
+            }
+        }
+
+        if (data == null) throw new RuntimeException("Resposta vazia do Mercado Pago");
+
+        String status      = data.get("status") != null ? data.get("status").toString() : null;
+        Object paymentId   = data.get("id");
+
+        // Extrai QR Code da resposta do MP
+        String pixQrCode       = null;
+        String pixQrCodeBase64 = null;
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pointInteraction = (Map<String, Object>) data.get("point_of_interaction");
+        if (pointInteraction != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> transactionData = (Map<String, Object>) pointInteraction.get("transaction_data");
+            if (transactionData != null) {
+                pixQrCode       = (String) transactionData.get("qr_code");
+                pixQrCodeBase64 = (String) transactionData.get("qr_code_base64");
+            }
+        }
+
+        log.info("[PIX-PLANO] plano={} paymentId={} status={} temQR={}", plano, paymentId, status, pixQrCode != null);
+
+        // Salva cobrança pendente — será ativada pelo webhook quando pago
+        CobrancaPlano cobranca = new CobrancaPlano();
+        cobranca.setEstabelecimento(estab);
+        cobranca.setPlano(plano.name());
+        cobranca.setTipoCobranca("AVULSO_PIX");
+        cobranca.setMpPaymentId(String.valueOf(paymentId));
+        cobranca.setValor(plano.getPreco());
+        cobranca.setStatus(status != null ? status.toUpperCase() : "PENDENTE");
+        cobranca.setPeriodoInicio(LocalDate.now());
+        cobrancaRepo.save(cobranca);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("paymentId",        paymentId);
+        result.put("status",           status);
+        result.put("pixQrCode",        pixQrCode);
+        result.put("pixQrCodeBase64",  pixQrCodeBase64);
+        result.put("plano",            plano.name());
+        return result;
+    }
+
+    // ─── 5. Ativar plano via webhook PIX ─────────────────────────────────────
+    @Transactional
+    public void ativarPlanoViaPix(String mpPaymentId) {
+        cobrancaRepo.findByMpPaymentId(mpPaymentId).ifPresent(cobranca -> {
+            if (!"AVULSO_PIX".equals(cobranca.getTipoCobranca())) return;
+            if ("APPROVED".equals(cobranca.getStatus())) return; // já processado
+
+            Plano plano = Plano.valueOf(cobranca.getPlano());
+            Estabelecimento estab = cobranca.getEstabelecimento();
+
+            estab.setPlano(plano);
+            estab.setPlanoAtivo(true);
+            estab.setPlanoValidoAte(LocalDate.now().plusMonths(1));
+            estabelecimentoRepo.save(estab);
+
+            cobranca.setStatus("APPROVED");
+            cobranca.setPeriodoFim(LocalDate.now().plusMonths(1));
+            cobrancaRepo.save(cobranca);
+
+            log.info("[PIX-PLANO] Plano {} ativado via webhook PIX para estab={}", plano, estab.getId());
+        });
+    }
+
+    // ─── 6. Cancelar assinatura ──────────────────────────────────────────────
     @Transactional
     public void cancelarAssinatura(Long estabelecimentoId) {
         Estabelecimento estab = estabelecimentoRepo.findById(estabelecimentoId)
