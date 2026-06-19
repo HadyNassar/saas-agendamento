@@ -45,12 +45,13 @@ public class MercadoPagoWebhook {
 
         String type = (String) body.get("type");
 
-        // Seleciona o secret correto pelo tipo do evento:
-        //   subscription_preapproval → aplicação de Assinaturas
-        //   payment                  → aplicação de Marketplace
-        String secret = resolverSecret(type);
+        // Tenta validar com ambos os secrets pois eventos "payment" podem vir
+        // tanto da app de Marketplace quanto da app de Assinaturas (PIX de plano)
+        boolean assinaturaValida =
+                validarAssinatura(xSignature, xRequestId, body, mpConfig.getWebhookSecretMarketplace())
+                        || validarAssinatura(xSignature, xRequestId, body, mpConfig.getWebhookSecret());
 
-        if (!validarAssinatura(xSignature, xRequestId, body, secret)) {
+        if (!assinaturaValida) {
             log.warn("[Webhook MP] Assinatura inválida — type={} x-signature={}", type, xSignature);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
