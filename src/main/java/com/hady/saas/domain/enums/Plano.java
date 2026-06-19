@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 public enum Plano {
 
-    STANDARD(2, new BigDecimal("2.00"),  "Agendara Standard"),
+    STANDARD(2, new BigDecimal("49.00"),  "Agendara Standard"),
     ELITE   (4, new BigDecimal("69.00"),  "Agendara Elite"),
     PLATINUM (7, new BigDecimal("119.00"), "Agendara Platinum");
 
