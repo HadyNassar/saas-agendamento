@@ -71,6 +71,13 @@ public class AssinaturaController {
         return ResponseEntity.ok(assinaturaService.pagarAvulso(id, dto));
     }
 
+    // GET /painel/assinatura/pix-status/{paymentId}
+    @GetMapping("/pix-status/{paymentId}")
+    public ResponseEntity<Map<String, Object>> pixStatus(
+            @PathVariable String paymentId) {
+        return ResponseEntity.ok(assinaturaService.consultarStatusPixPlano(paymentId));
+    }
+
     // POST /painel/assinatura/avulso-pix
     @PostMapping("/avulso-pix")
     public ResponseEntity<Map<String, Object>> pagarAvulsoPix(

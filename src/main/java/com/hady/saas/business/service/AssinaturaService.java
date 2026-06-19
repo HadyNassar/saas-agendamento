@@ -323,6 +323,18 @@ public class AssinaturaService {
         return result;
     }
 
+    // ─── Consultar status de pagamento PIX de plano ────────────────────────────
+    public Map<String, Object> consultarStatusPixPlano(String mpPaymentId) {
+        return cobrancaRepo.findByMpPaymentId(mpPaymentId).map(cobranca -> {
+            boolean aprovado = "APPROVED".equals(cobranca.getStatus());
+            Map<String, Object> result = new HashMap<>();
+            result.put("aprovado", aprovado);
+            result.put("status", cobranca.getStatus());
+            result.put("plano", cobranca.getPlano());
+            return result;
+        }).orElse(Map.of("aprovado", false, "status", "NOT_FOUND"));
+    }
+
     // ─── 4. Pagar plano com PIX (avulso) ────────────────────────────────────
     @Transactional
     public Map<String, Object> pagarAvulsoPix(Long estabelecimentoId, PagamentoAvulsoPlanoDTO dto) {
