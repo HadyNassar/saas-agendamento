@@ -255,8 +255,10 @@ public class AgendamentoService {
             }
 
             if (horario.getInicioAlmoco() != null && horario.getFimAlmoco() != null) {
-                if (!cursor.isBefore(horario.getInicioAlmoco()) &&
-                        cursor.isBefore(horario.getFimAlmoco())) {
+                LocalTime fimSlot = cursor.plusMinutes(duracaoServico);
+                boolean invadeAlmoco = cursor.isBefore(horario.getFimAlmoco()) &&
+                        fimSlot.isAfter(horario.getInicioAlmoco());
+                if (invadeAlmoco) {
                     cursor = horario.getFimAlmoco();
                     continue;
                 }
@@ -310,8 +312,10 @@ public class AgendamentoService {
         while (cursor.plusMinutes(duracaoServico).compareTo(fechamento) <= 0) {
 
             if (horario.getInicioAlmoco() != null && horario.getFimAlmoco() != null) {
-                if (!cursor.isBefore(horario.getInicioAlmoco()) &&
-                        cursor.isBefore(horario.getFimAlmoco())) {
+                LocalTime fimSlot = cursor.plusMinutes(duracaoServico);
+                boolean invadeAlmoco = cursor.isBefore(horario.getFimAlmoco()) &&
+                        fimSlot.isAfter(horario.getInicioAlmoco());
+                if (invadeAlmoco) {
                     cursor = horario.getFimAlmoco();
                     continue;
                 }
