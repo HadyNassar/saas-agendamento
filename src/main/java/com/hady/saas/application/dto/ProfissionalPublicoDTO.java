@@ -21,10 +21,16 @@ public class ProfissionalPublicoDTO {
         dto.id            = p.getId();
         dto.nome          = p.getNome();
         dto.fotoPerfil    = p.getFotoPerfil();
-        dto.especialidade = p.getEspecialidades() != null && !p.getEspecialidades().isEmpty()
-                ? p.getEspecialidades().get(0).getNome()
-                : null;
         dto.avaliacaoMedia = media;
+
+        try {
+            dto.especialidade = p.getEspecialidades() != null && !p.getEspecialidades().isEmpty()
+                    ? p.getEspecialidades().get(0).getNome()
+                    : null;
+        } catch (Exception e) {
+            dto.especialidade = null;
+        }
+
         return dto;
     }
 

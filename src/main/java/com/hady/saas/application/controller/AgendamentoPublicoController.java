@@ -10,10 +10,12 @@ import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.domain.servico.Servico;
+import com.hady.saas.infrastructure.repository.AvaliacaoRepository;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -31,17 +33,20 @@ public class AgendamentoPublicoController {
     private final ServicoService servicoService;
     private final ClienteService clienteService;
     private final AgendamentoService agendamentoService;
+    private final AvaliacaoRepository avaliacaoRepository;
 
     public AgendamentoPublicoController(EstabelecimentoRepository estabelecimentoRepository,
                                         ProfissionalService profissionalService,
                                         ServicoService servicoService,
                                         ClienteService clienteService,
-                                        AgendamentoService agendamentoService) {
+                                        AgendamentoService agendamentoService,
+                                        AvaliacaoRepository avaliacaoRepository) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.profissionalService = profissionalService;
         this.servicoService = servicoService;
         this.clienteService = clienteService;
         this.agendamentoService = agendamentoService;
+        this.avaliacaoRepository = avaliacaoRepository;
     }
 
     // GET /app/{slug}/configuracoes
@@ -59,11 +64,18 @@ public class AgendamentoPublicoController {
     }
 
     // GET /app/{slug}/profissionais
+    @Transactional(readOnly = true)
     @GetMapping("/profissionais")
     public ResponseEntity<List<ProfissionalPublicoDTO>> listarProfissionais(@PathVariable String slug) {
         Estabelecimento estabelecimento = buscarEstabelecimento(slug);
         List<Profissional> profissionais = profissionalService.listarAtivos(estabelecimento.getId());
-        return ResponseEntity.ok(profissionais.stream().map(ProfissionalPublicoDTO::de).toList());
+        List<ProfissionalPublicoDTO> dtos = profissionais.stream()
+                .map(p -> {
+                    Double media = avaliacaoRepository.mediaNotasProfissional(p.getId());
+                    return ProfissionalPublicoDTO.de(p, media);
+                })
+                .toList();
+        return ResponseEntity.ok(dtos);
     }
 
     // GET /app/{slug}/servicos
