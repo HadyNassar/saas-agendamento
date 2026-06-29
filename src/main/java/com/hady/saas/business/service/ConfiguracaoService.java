@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 public class ConfiguracaoService {
@@ -35,15 +36,27 @@ public class ConfiguracaoService {
                                       String nome,
                                       String telefone,
                                       String endereco,
-                                      Integer mesesAntecipacao) {
+                                      Integer mesesAntecipacao,
+                                      String fotoPerfil,
+                                      String instagram,
+                                      String whatsappContato,
+                                      String facebook,
+                                      List<String> comodidades,
+                                      List<String> formasPagamento) {
 
         Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
         est.setNome(nome);
-        if (telefone != null) est.setTelefone(telefone);
-        if (endereco != null) est.setEndereco(endereco);
-        if (mesesAntecipacao != null) est.setMesesAntecipacao(mesesAntecipacao);
+        if (telefone != null)          est.setTelefone(telefone);
+        if (endereco != null)          est.setEndereco(endereco);
+        if (mesesAntecipacao != null)  est.setMesesAntecipacao(mesesAntecipacao);
+        if (fotoPerfil != null)        est.setFotoPerfil(fotoPerfil);
+        if (instagram != null)         est.setInstagram(instagram);
+        if (whatsappContato != null)   est.setWhatsappContato(whatsappContato);
+        if (facebook != null)          est.setFacebook(facebook);
+        if (comodidades != null)       est.setComodidades(comodidades);
+        if (formasPagamento != null)   est.setFormasPagamento(formasPagamento);
 
         estabelecimentoRepository.save(est);
     }

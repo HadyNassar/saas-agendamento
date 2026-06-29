@@ -9,6 +9,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "estabelecimentos")
@@ -41,17 +43,14 @@ public class Estabelecimento {
 
     private boolean ativo = true;
 
-    // WhatsApp / Evolution API
     @Column(unique = true)
     private String evolutionInstanceName;
 
     private boolean whatsappConectado = false;
 
-    // Quantos meses à frente o cliente pode agendar (1, 3, 6 ou 12)
     @Column(name = "meses_antecipacao", nullable = false)
     private Integer mesesAntecipacao = 3;
 
-    // ── Mercado Pago — Assinatura do plano ───────────────────────────────────
     @Column(name = "plano_ativo")
     private boolean planoAtivo = false;
 
@@ -61,7 +60,6 @@ public class Estabelecimento {
     @Column(name = "mp_subscription_id")
     private String mpSubscriptionId;
 
-    // ── Mercado Pago — Marketplace (pagamento split) ──────────────────────────
     @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "mp_access_token")
     private String mpAccessToken;
@@ -75,18 +73,15 @@ public class Estabelecimento {
     @Column(name = "aceita_pagamento")
     private boolean aceitaPagamento = false;
 
-    // ── Sinal (pagamento antecipado obrigatório) ──────────────────────────────
     @Column(name = "exigir_sinal")
     private boolean exigirSinal = false;
 
-    // 'fixo' ou 'percentual'
     @Column(name = "tipo_sinal")
     private String tipoSinal;
 
     @Column(name = "valor_sinal", precision = 10, scale = 2)
     private BigDecimal valorSinal;
 
-    // ── Trial gratuito ────────────────────────────────────────────────────────
     @Column(name = "trial_ativo")
     private boolean trialAtivo = false;
 
@@ -99,14 +94,30 @@ public class Estabelecimento {
     @Column(name = "trial_usado")
     private boolean trialUsado = false;
 
+    @Column(name = "foto_perfil")
+    private String fotoPerfil;
+
+    @Column(name = "instagram")
+    private String instagram;
+
+    @Column(name = "whatsapp_contato")
+    private String whatsappContato;
+
+    @Column(name = "facebook")
+    private String facebook;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "estabelecimento_comodidades", joinColumns = @JoinColumn(name = "estabelecimento_id"))
+    @Column(name = "comodidade")
+    private List<String> comodidades = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "estabelecimento_formas_pagamento", joinColumns = @JoinColumn(name = "estabelecimento_id"))
+    @Column(name = "forma_pagamento")
+    private List<String> formasPagamento = new ArrayList<>();
+
     public Estabelecimento() {}
 
-    /**
-     * Retorna o plano que deve ser usado para verificar limites e permissões.
-     * Durante o trial, o estabelecimento opera com acesso PLATINUM completo,
-     * independentemente do plano cadastral (sempre STANDARD no registro).
-     * Após o trial, retorna o plano real — que só muda via pagamento.
-     */
     public Plano getPlanoEfetivo() {
         if (trialAtivo && trialFim != null && !LocalDate.now().isAfter(trialFim)) {
             return Plano.ELITE;
@@ -119,12 +130,8 @@ public class Estabelecimento {
     }
 
     public boolean temAcesso() {
-        if (planoAtivo && planoValidoAte != null && !LocalDate.now().isAfter(planoValidoAte)) {
-            return true;
-        }
-        if (trialAtivo && trialFim != null && !LocalDate.now().isAfter(trialFim)) {
-            return true;
-        }
+        if (planoAtivo && planoValidoAte != null && !LocalDate.now().isAfter(planoValidoAte)) return true;
+        if (trialAtivo && trialFim != null && !LocalDate.now().isAfter(trialFim)) return true;
         return false;
     }
 
@@ -164,6 +171,12 @@ public class Estabelecimento {
     public LocalDate getTrialInicio()          { return trialInicio; }
     public LocalDate getTrialFim()             { return trialFim; }
     public boolean isTrialUsado()              { return trialUsado; }
+    public String getFotoPerfil()              { return fotoPerfil; }
+    public String getInstagram()               { return instagram; }
+    public String getWhatsappContato()         { return whatsappContato; }
+    public String getFacebook()                { return facebook; }
+    public List<String> getComodidades()       { return comodidades; }
+    public List<String> getFormasPagamento()   { return formasPagamento; }
 
     // ── SETTERS ──────────────────────────────────────────────────────────────
     public void setId(Long id)                                         { this.id = id; }
@@ -175,7 +188,7 @@ public class Estabelecimento {
     public void setEndereco(String endereco)                           { this.endereco = endereco; }
     public void setCriadoEm(LocalDateTime criadoEm)                   { this.criadoEm = criadoEm; }
     public void setAtivo(boolean ativo)                                { this.ativo = ativo; }
-    public void setEvolutionInstanceName(String evolutionInstanceName) { this.evolutionInstanceName = evolutionInstanceName; }
+    public void setEvolutionInstanceName(String n)                     { this.evolutionInstanceName = n; }
     public void setWhatsappConectado(boolean whatsappConectado)        { this.whatsappConectado = whatsappConectado; }
     public void setMesesAntecipacao(Integer mesesAntecipacao)          { this.mesesAntecipacao = mesesAntecipacao; }
     public void setPlanoAtivo(boolean planoAtivo)                      { this.planoAtivo = planoAtivo; }
@@ -192,4 +205,10 @@ public class Estabelecimento {
     public void setTrialInicio(LocalDate trialInicio)                  { this.trialInicio = trialInicio; }
     public void setTrialFim(LocalDate trialFim)                        { this.trialFim = trialFim; }
     public void setTrialUsado(boolean trialUsado)                      { this.trialUsado = trialUsado; }
+    public void setFotoPerfil(String fotoPerfil)                       { this.fotoPerfil = fotoPerfil; }
+    public void setInstagram(String instagram)                         { this.instagram = instagram; }
+    public void setWhatsappContato(String whatsappContato)             { this.whatsappContato = whatsappContato; }
+    public void setFacebook(String facebook)                           { this.facebook = facebook; }
+    public void setComodidades(List<String> comodidades)               { this.comodidades = comodidades; }
+    public void setFormasPagamento(List<String> formasPagamento)       { this.formasPagamento = formasPagamento; }
 }

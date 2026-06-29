@@ -51,7 +51,16 @@ public class ConfiguracaoController {
                                                         Authentication auth) {
         configuracaoService.editarEstabelecimento(
                 authUtil.getEstabelecimentoId(auth),
-                dto.getNome(), dto.getTelefone(), dto.getEndereco(), dto.getMesesAntecipacao()
+                dto.getNome(),
+                dto.getTelefone(),
+                dto.getEndereco(),
+                dto.getMesesAntecipacao(),
+                dto.getFotoPerfil(),
+                dto.getInstagram(),
+                dto.getWhatsappContato(),
+                dto.getFacebook(),
+                dto.getComodidades(),
+                dto.getFormasPagamento()
         );
         return ResponseEntity.ok("Dados do estabelecimento atualizados!");
     }

@@ -21,18 +21,28 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    // Gera token com usuarioId e estabelecimentoId como claims extras.
-    // Isso elimina o SELECT ao banco a cada requisição autenticada — os IDs
-    // são lidos diretamente do token pelo JwtAuthenticationFilter.
     public String generateToken(String username, Long usuarioId, Long estabelecimentoId) {
         return Jwts.builder()
                 .setSubject(username)
                 .claim("uid", usuarioId)
                 .claim("eid", estabelecimentoId)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 8)) // 8h
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 8))
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    public String gerarTokenCliente(Long clienteId, String slug) {
+        return Jwts.builder()
+                .setSubject("cliente:" + clienteId + ":" + slug)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public String extrairSubjectCliente(String token) {
+        return getClaims(token).getSubject();
     }
 
     public String extractUsername(String token) {
