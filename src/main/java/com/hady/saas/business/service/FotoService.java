@@ -43,7 +43,10 @@ public class FotoService {
     @Value("${r2.bucket}")
     private String bucket;
 
-    @Value("${app.base-url:http://localhost:8080}")
+    // URL da API (backend) — usada para montar links de /serve das fotos.
+    // Diferente de app.base-url, que aponta para o FRONTEND (usado em e-mails e WhatsApp).
+    // Se app.api-url não estiver definida, cai para app.base-url (compatibilidade).
+    @Value("${app.api-url:${app.base-url:http://localhost:8080}}")
     private String baseUrl;
 
     private static final int MAX_FOTOS = 10;
