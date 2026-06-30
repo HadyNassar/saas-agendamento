@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -73,6 +74,7 @@ public class FotoService {
 
     // ─── FICHA COMPLETA DO CLIENTE (painel autenticado) ───────────────────────
 
+    @Transactional(readOnly = true)
     public FichaClienteDTO montarFichaCliente(Long clienteId, Long estabelecimentoId) {
         Cliente cliente = clienteRepository.findByIdAndEstabelecimentoId(clienteId, estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
@@ -139,6 +141,7 @@ public class FotoService {
 
     // ─── FOTOS DO CLIENTE ──────────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<FotoClienteDTO> listarFotosCliente(Long clienteId, Long estabelecimentoId) {
         clienteRepository.findByIdAndEstabelecimentoId(clienteId, estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
@@ -189,6 +192,7 @@ public class FotoService {
     // Endpoint: GET /painel/fotos/clientes/{fotoId}/serve
     // Valida que a foto pertence ao estabelecimento antes de retornar o stream.
 
+    @Transactional(readOnly = true)
     public Resource serveArquivoCliente(Long fotoId, Long estabelecimentoId) throws IOException {
         FotoCliente foto = fotoClienteRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
@@ -201,6 +205,7 @@ public class FotoService {
         return new ByteArrayResource(bytes);
     }
 
+    @Transactional
     public void removerFotoCliente(Long fotoId, Long estabelecimentoId) {
         FotoCliente foto = fotoClienteRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
@@ -215,6 +220,7 @@ public class FotoService {
 
     // ─── FOTOS DO PROFISSIONAL ─────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public List<FotoProfissionalDTO> listarFotosProfissional(Long profissionalId, Long estabelecimentoId) {
         profissionalRepository.findByIdAndEstabelecimentoId(profissionalId, estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Profissional não encontrado"));
@@ -256,6 +262,7 @@ public class FotoService {
     // ─── SERVE ARQUIVO AUTENTICADO (fotos de profissionais — painel) ──────────
     // Endpoint: GET /painel/fotos/profissionais/{fotoId}/serve
 
+    @Transactional(readOnly = true)
     public Resource serveArquivoProfissional(Long fotoId, Long estabelecimentoId) throws IOException {
         FotoProfissional foto = fotoProfissionalRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
@@ -272,6 +279,7 @@ public class FotoService {
      * Gera URL pré-assinada (1 hora) para servir fotos públicas de portfólio.
      * Chamado pelo FotoPublicoController (portfólio público do profissional).
      */
+    @Transactional(readOnly = true)
     public String gerarUrlPublicaProfissional(Long fotoId, Long estabelecimentoId) {
         FotoProfissional foto = fotoProfissionalRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
@@ -288,6 +296,7 @@ public class FotoService {
         return s3Presigner.presignGetObject(presignRequest).url().toString();
     }
 
+    @Transactional
     public void removerFotoProfissional(Long fotoId, Long estabelecimentoId) {
         FotoProfissional foto = fotoProfissionalRepository.findById(fotoId)
                 .orElseThrow(() -> new RuntimeException("Foto não encontrada"));
