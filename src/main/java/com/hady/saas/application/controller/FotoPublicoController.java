@@ -6,6 +6,7 @@ import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.repository.FotoProfissionalRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,8 +31,8 @@ public class FotoPublicoController {
     private final FotoProfissionalRepository fotoProfissionalRepository;
 
     public FotoPublicoController(FotoService fotoService,
-                                  EstabelecimentoRepository estabelecimentoRepository,
-                                  FotoProfissionalRepository fotoProfissionalRepository) {
+                                 EstabelecimentoRepository estabelecimentoRepository,
+                                 FotoProfissionalRepository fotoProfissionalRepository) {
         this.fotoService = fotoService;
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.fotoProfissionalRepository = fotoProfissionalRepository;
@@ -44,6 +45,7 @@ public class FotoPublicoController {
      * Retorna URLs pré-assinadas do R2 (válidas 1h) — sem expor credenciais nem path interno.
      */
     @GetMapping("/profissionais/{profissionalId}/fotos")
+    @Transactional(readOnly = true)
     public ResponseEntity<List<FotoProfissionalDTO>> portfolioProfissional(
             @PathVariable String slug,
             @PathVariable Long profissionalId) {
