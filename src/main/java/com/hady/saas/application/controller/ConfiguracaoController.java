@@ -45,6 +45,8 @@ public class ConfiguracaoController {
         return ResponseEntity.ok(dto);
     }
 
+    // Aba "Estabelecimento" — atualiza nome, telefone, endereço e logo.
+    // Mantém @Valid pois nome é obrigatório nesta aba.
     @PutMapping("/estabelecimento")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> editarEstabelecimento(@Valid @RequestBody EditarEstabelecimentoDTO dto,
@@ -63,6 +65,28 @@ public class ConfiguracaoController {
                 dto.getFormasPagamento()
         );
         return ResponseEntity.ok("Dados do estabelecimento atualizados!");
+    }
+
+    // NOVO — Aba "Detalhes & Redes": atualiza apenas foto, redes sociais,
+    // comodidades e formas de pagamento. Nome não é exigido nem alterado.
+    @PatchMapping("/detalhes")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> editarDetalhes(@RequestBody EditarEstabelecimentoDTO dto,
+                                                 Authentication auth) {
+        configuracaoService.editarEstabelecimento(
+                authUtil.getEstabelecimentoId(auth),
+                null,                       // nome — preserva o valor existente no banco
+                null,                       // telefone — preserva
+                null,                       // endereco — preserva
+                null,                       // mesesAntecipacao — preserva
+                dto.getFotoPerfil(),
+                dto.getInstagram(),
+                dto.getWhatsappContato(),
+                dto.getFacebook(),
+                dto.getComodidades(),
+                dto.getFormasPagamento()
+        );
+        return ResponseEntity.ok("Detalhes atualizados!");
     }
 
     @PatchMapping("/sinal")

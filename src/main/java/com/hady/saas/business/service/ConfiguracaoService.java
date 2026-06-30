@@ -47,7 +47,9 @@ public class ConfiguracaoService {
         Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
-        est.setNome(nome);
+        // CORREÇÃO: nome também protegido por null check, igual aos outros campos.
+        // Assim o PATCH /detalhes pode passar null sem apagar o nome existente.
+        if (nome != null)              est.setNome(nome);
         if (telefone != null)          est.setTelefone(telefone);
         if (endereco != null)          est.setEndereco(endereco);
         if (mesesAntecipacao != null)  est.setMesesAntecipacao(mesesAntecipacao);
