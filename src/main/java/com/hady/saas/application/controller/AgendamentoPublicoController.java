@@ -74,8 +74,8 @@ public class AgendamentoPublicoController {
         cfg.put("instagram", est.getInstagram());
         cfg.put("whatsappContato", est.getWhatsappContato());
         cfg.put("facebook", est.getFacebook());
-        cfg.put("comodidades", est.getComodidades());
-        cfg.put("formasPagamento", est.getFormasPagamento());
+        cfg.put("comodidades", new java.util.ArrayList<>(est.getComodidades()));
+        cfg.put("formasPagamento", new java.util.ArrayList<>(est.getFormasPagamento()));
         return ResponseEntity.ok(cfg);
     }
 
