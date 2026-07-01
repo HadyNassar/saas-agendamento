@@ -21,10 +21,7 @@ public class EstabelecimentoResponseDTO {
     private String tipoSinal;
     private BigDecimal valorSinal;
 
-    // ─── Campos da aba "Detalhes & Redes" ────────────────────────────────────
-    // FIX (falso salvo): faltavam aqui, então o GET nunca devolvia esses dados
-    // de volta ao frontend depois de salvar, mesmo o PATCH /detalhes gravando
-    // corretamente no banco.
+    // ─── Campos de Detalhes & Redes (faltavam aqui — causa do "falso salvo") ──
     private String fotoPerfil;
     private String instagram;
     private String whatsappContato;
@@ -103,20 +100,20 @@ public class EstabelecimentoResponseDTO {
     public void setValorSinal(BigDecimal valorSinal)   { this.valorSinal = valorSinal; }
 
     public String getFotoPerfil()                      { return fotoPerfil; }
-    public void setFotoPerfil(String fotoPerfil)       { this.fotoPerfil = fotoPerfil; }
+    public void setFotoPerfil(String fotoPerfil)        { this.fotoPerfil = fotoPerfil; }
 
-    public String getInstagram()                       { return instagram; }
-    public void setInstagram(String instagram)         { this.instagram = instagram; }
+    public String getInstagram()                        { return instagram; }
+    public void setInstagram(String instagram)          { this.instagram = instagram; }
 
-    public String getWhatsappContato()                 { return whatsappContato; }
-    public void setWhatsappContato(String w)           { this.whatsappContato = w; }
+    public String getWhatsappContato()                          { return whatsappContato; }
+    public void setWhatsappContato(String whatsappContato)      { this.whatsappContato = whatsappContato; }
 
     public String getFacebook()                        { return facebook; }
-    public void setFacebook(String facebook)           { this.facebook = facebook; }
+    public void setFacebook(String facebook)            { this.facebook = facebook; }
 
-    public List<String> getComodidades()                { return comodidades; }
-    public void setComodidades(List<String> c)          { this.comodidades = c; }
+    public List<String> getComodidades()                        { return comodidades; }
+    public void setComodidades(List<String> comodidades)        { this.comodidades = comodidades; }
 
-    public List<String> getFormasPagamento()            { return formasPagamento; }
-    public void setFormasPagamento(List<String> f)      { this.formasPagamento = f; }
+    public List<String> getFormasPagamento()                            { return formasPagamento; }
+    public void setFormasPagamento(List<String> formasPagamento)        { this.formasPagamento = formasPagamento; }
 }
