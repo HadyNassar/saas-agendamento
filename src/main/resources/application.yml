@@ -78,6 +78,7 @@ r2:
   secret-access-key: ${R2_SECRET_ACCESS_KEY:}
   endpoint: ${R2_ENDPOINT:}
   bucket: ${R2_BUCKET:agendara-fotos}
+  public-url: ${R2_PUBLIC_URL:https://pub-c48aa29f81ad4e289ee288fe3702defa.r2.dev}
 
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}

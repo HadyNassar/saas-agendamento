@@ -3,6 +3,7 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.AtualizarComissaoDTO;
 import com.hady.saas.application.dto.CadastrarProfissionalDTO;
 import com.hady.saas.application.dto.ProfissionalResponseDTO;
+import com.hady.saas.business.service.FotoService;
 import com.hady.saas.business.service.ProfissionalService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.profissional.Especialidade;
@@ -16,8 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/painel/profissionais")
@@ -26,13 +30,16 @@ public class ProfissionalController {
     private final ProfissionalService profissionalService;
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final AuthUtil authUtil;
+    private final FotoService fotoService;
 
     public ProfissionalController(ProfissionalService profissionalService,
                                   EstabelecimentoRepository estabelecimentoRepository,
-                                  AuthUtil authUtil) {
+                                  AuthUtil authUtil,
+                                  FotoService fotoService) {
         this.profissionalService = profissionalService;
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.authUtil = authUtil;
+        this.fotoService = fotoService;
     }
 
     private Estabelecimento getEstab(Authentication auth) {
@@ -44,10 +51,10 @@ public class ProfissionalController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
     public ResponseEntity<List<ProfissionalResponseDTO>> listar(Authentication auth) {
         return ResponseEntity.ok(
-            profissionalService.listarAtivos(authUtil.getEstabelecimentoId(auth))
-                .stream()
-                .map(ProfissionalResponseDTO::new)
-                .toList()
+                profissionalService.listarAtivos(authUtil.getEstabelecimentoId(auth))
+                        .stream()
+                        .map(ProfissionalResponseDTO::new)
+                        .toList()
         );
     }
 
@@ -82,8 +89,8 @@ public class ProfissionalController {
     @PatchMapping("/{id}/comissao")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> atualizarComissao(@PathVariable Long id,
-                                                     @RequestBody AtualizarComissaoDTO dto,
-                                                     Authentication auth) {
+                                                    @RequestBody AtualizarComissaoDTO dto,
+                                                    Authentication auth) {
         profissionalService.atualizarComissao(id, authUtil.getEstabelecimentoId(auth), dto.getComissaoPercent());
         return ResponseEntity.ok("Comissão atualizada!");
     }
@@ -125,7 +132,7 @@ public class ProfissionalController {
     @GetMapping("/{id}/servicos")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
     public ResponseEntity<List<Servico>> listarServicosDoProfissional(@PathVariable Long id,
-                                                                       Authentication auth) {
+                                                                      Authentication auth) {
         return ResponseEntity.ok(
                 profissionalService.listarServicosDoProfissional(id, authUtil.getEstabelecimentoId(auth))
         );
@@ -142,9 +149,62 @@ public class ProfissionalController {
     @PutMapping("/{id}/servicos")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> atualizarServicos(@PathVariable Long id,
-                                                     @RequestBody List<Long> servicoIds,
-                                                     Authentication auth) {
+                                                    @RequestBody List<Long> servicoIds,
+                                                    Authentication auth) {
         profissionalService.atualizarServicos(id, servicoIds, authUtil.getEstabelecimentoId(auth));
         return ResponseEntity.ok("Serviços vinculados com sucesso!");
+    }
+
+    private boolean isAdminOuGerente(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_GERENTE"));
+    }
+
+    /**
+     * POST /painel/profissionais/{id}/foto-perfil
+     *
+     * Upload da foto de perfil (a que aparece na página pública, ao lado do
+     * nome do profissional). Diferente do portfólio: é uma única foto, chave
+     * fixa no R2 (sobrescreve a anterior) e sempre pública.
+     *
+     * Acesso: ADMIN/GERENTE de qualquer profissional do estabelecimento, ou o
+     * próprio profissional autenticado editando sua própria foto.
+     */
+    @PostMapping("/{id}/foto-perfil")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<?> atualizarFotoPerfil(@PathVariable Long id,
+                                                 @RequestParam("arquivo") MultipartFile arquivo,
+                                                 Authentication auth) throws IOException {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+
+        if (!isAdminOuGerente(auth)) {
+            Profissional proprio = profissionalService.buscarPorUsuario(authUtil.getUsuarioId(auth));
+            if (!proprio.getId().equals(id)) {
+                return ResponseEntity.status(403).body("Você só pode editar sua própria foto de perfil.");
+            }
+        }
+
+        String url = fotoService.atualizarFotoPerfil(id, estabelecimentoId, arquivo);
+        return ResponseEntity.ok(Map.of("fotoPerfil", url));
+    }
+
+    /**
+     * DELETE /painel/profissionais/{id}/foto-perfil
+     * Mesma regra de acesso do upload.
+     */
+    @DeleteMapping("/{id}/foto-perfil")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")
+    public ResponseEntity<?> removerFotoPerfil(@PathVariable Long id, Authentication auth) {
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+
+        if (!isAdminOuGerente(auth)) {
+            Profissional proprio = profissionalService.buscarPorUsuario(authUtil.getUsuarioId(auth));
+            if (!proprio.getId().equals(id)) {
+                return ResponseEntity.status(403).body("Você só pode remover sua própria foto de perfil.");
+            }
+        }
+
+        fotoService.removerFotoPerfil(id, estabelecimentoId);
+        return ResponseEntity.noContent().build();
     }
 }

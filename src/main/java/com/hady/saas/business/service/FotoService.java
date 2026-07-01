@@ -50,6 +50,13 @@ public class FotoService {
     @Value("${app.api-url:${app.base-url:http://localhost:8080}}")
     private String baseUrl;
 
+    // URL pública do bucket R2 (domínio público habilitado no Cloudflare,
+    // ex: https://pub-xxxx.r2.dev ou domínio customizado). Usada para montar
+    // a URL direta da foto de perfil do profissional, que é sempre pública
+    // (diferente das fotos de cliente/portfólio, que são privadas/presigned).
+    @Value("${r2.public-url}")
+    private String r2PublicUrl;
+
     private static final int MAX_FOTOS = 10;
     private static final long MAX_TAMANHO_BYTES = 2L * 1024 * 1024; // 2 MB
     private static final Set<String> TIPOS_ACEITOS = Set.of("image/jpeg", "image/png", "image/webp");
@@ -257,6 +264,43 @@ public class FotoService {
 
         fotoProfissionalRepository.save(foto);
         return FotoProfissionalDTO.from(foto, baseUrl);
+    }
+
+    // ─── FOTO DE PERFIL DO PROFISSIONAL (pública, chave fixa) ─────────────────
+    // Diferente do portfólio (várias fotos, UUID, privadas): aqui é UMA foto,
+    // chave fixa "profissionais/{id}/perfil.jpg" que se sobrescreve a cada
+    // upload, e a URL é pública direta do R2 (sem presign), pois a foto de
+    // perfil sempre aparece na página pública sem precisar de autenticação.
+
+    @Transactional
+    public String atualizarFotoPerfil(Long profissionalId, Long estabelecimentoId,
+                                      MultipartFile arquivo) throws IOException {
+        validarArquivo(arquivo);
+
+        Profissional profissional = profissionalRepository
+                .findByIdAndEstabelecimentoId(profissionalId, estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Profissional não encontrado"));
+
+        String key = "profissionais/" + profissionalId + "/perfil.jpg";
+        uploadComprimido(arquivo, key);
+
+        String urlPublica = r2PublicUrl + "/" + key;
+        profissional.setFotoPerfil(urlPublica);
+        profissionalRepository.save(profissional);
+
+        return urlPublica;
+    }
+
+    @Transactional
+    public void removerFotoPerfil(Long profissionalId, Long estabelecimentoId) {
+        Profissional profissional = profissionalRepository
+                .findByIdAndEstabelecimentoId(profissionalId, estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Profissional não encontrado"));
+
+        String key = "profissionais/" + profissionalId + "/perfil.jpg";
+        deletarR2(key);
+        profissional.setFotoPerfil(null);
+        profissionalRepository.save(profissional);
     }
 
     // ─── SERVE ARQUIVO AUTENTICADO (fotos de profissionais — painel) ──────────
