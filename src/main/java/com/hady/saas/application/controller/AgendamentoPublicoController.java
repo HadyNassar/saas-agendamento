@@ -50,6 +50,12 @@ public class AgendamentoPublicoController {
     }
 
     // GET /app/{slug}/configuracoes
+    // @Transactional(readOnly = true) — NECESSÁRIO: comodidades e formasPagamento
+    // são @ElementCollection (lazy) na entidade Estabelecimento. Sem uma sessão
+    // Hibernate aberta durante a serialização do JSON, o Jackson tenta ler esses
+    // proxies fora da sessão e estoura LazyInitializationException (erro visto
+    // em produção: "could not initialize proxy - no Session").
+    @Transactional(readOnly = true)
     @GetMapping("/configuracoes")
     public ResponseEntity<Map<String, Object>> configuracoesPublicas(@PathVariable String slug) {
         Estabelecimento est = buscarEstabelecimento(slug);
