@@ -26,6 +26,7 @@ public class ConfiguracaoService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional(readOnly = true)
     public Estabelecimento buscarEstabelecimento(Long id) {
         return estabelecimentoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));

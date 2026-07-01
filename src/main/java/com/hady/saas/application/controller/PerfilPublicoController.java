@@ -10,6 +10,7 @@ import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.repository.HorarioFuncionamentoRepository;
 import com.hady.saas.infrastructure.security.JwtUtil;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -54,6 +55,7 @@ public class PerfilPublicoController {
     }
 
     // GET /app/{slug}/detalhes
+    @Transactional(readOnly = true)
     @GetMapping("/detalhes")
     public ResponseEntity<Map<String, Object>> detalhes(@PathVariable String slug) {
         Estabelecimento est = buscar(slug);
