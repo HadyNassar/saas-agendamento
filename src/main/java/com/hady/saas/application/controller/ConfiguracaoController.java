@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Map;
 
 @RestController
@@ -47,8 +48,8 @@ public class ConfiguracaoController {
                 est.getInstagram(),
                 est.getWhatsappContato(),
                 est.getFacebook(),
-                est.getComodidades(),
-                est.getFormasPagamento()
+                new ArrayList<>(est.getComodidades()),
+                new ArrayList<>(est.getFormasPagamento())
         );
         return ResponseEntity.ok(dto);
     }

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,8 +76,8 @@ public class PerfilPublicoController {
         Map<String, Object> res = new HashMap<>();
         res.put("horarios",        horariosDto);
         res.put("endereco",        est.getEndereco());
-        res.put("comodidades",     est.getComodidades());
-        res.put("formasPagamento", est.getFormasPagamento());
+        res.put("comodidades",     new ArrayList<>(est.getComodidades()));
+        res.put("formasPagamento", new ArrayList<>(est.getFormasPagamento()));
         return ResponseEntity.ok(res);
     }
 
