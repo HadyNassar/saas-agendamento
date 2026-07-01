@@ -60,6 +60,16 @@ public class AgendamentoPublicoController {
         cfg.put("exigirSinal", est.isExigirSinal());
         cfg.put("tipoSinal", est.getTipoSinal());
         cfg.put("valorSinal", est.getValorSinal());
+        // NOVO — faltavam na página pública: logo do estabelecimento (Problema A),
+        // redes sociais e comodidades/formas de pagamento (Problema 2A/2B),
+        // já expostos há tempos no endpoint autenticado /painel/configuracoes/estabelecimento
+        // mas nunca replicados aqui, no endpoint público.
+        cfg.put("fotoPerfil", est.getFotoPerfil());
+        cfg.put("instagram", est.getInstagram());
+        cfg.put("whatsappContato", est.getWhatsappContato());
+        cfg.put("facebook", est.getFacebook());
+        cfg.put("comodidades", est.getComodidades());
+        cfg.put("formasPagamento", est.getFormasPagamento());
         return ResponseEntity.ok(cfg);
     }
 
