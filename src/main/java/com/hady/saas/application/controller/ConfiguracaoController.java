@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -28,6 +29,7 @@ public class ConfiguracaoController {
         this.authUtil = authUtil;
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/estabelecimento")
     public ResponseEntity<EstabelecimentoResponseDTO> buscarEstabelecimento(Authentication auth) {
         Estabelecimento est = configuracaoService.buscarEstabelecimento(authUtil.getEstabelecimentoId(auth));
