@@ -5,6 +5,7 @@ import com.hady.saas.application.dto.AlterarSenhaDTO;
 import com.hady.saas.application.dto.EditarEstabelecimentoDTO;
 import com.hady.saas.application.dto.EstabelecimentoResponseDTO;
 import com.hady.saas.business.service.ConfiguracaoService;
+import com.hady.saas.business.service.FotoService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.security.AuthUtil;
 import jakarta.validation.Valid;
@@ -13,7 +14,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Map;
@@ -24,10 +27,13 @@ public class ConfiguracaoController {
 
     private final ConfiguracaoService configuracaoService;
     private final AuthUtil authUtil;
+    private final FotoService fotoService; // NOVO
 
-    public ConfiguracaoController(ConfiguracaoService configuracaoService, AuthUtil authUtil) {
+    public ConfiguracaoController(ConfiguracaoService configuracaoService, AuthUtil authUtil,
+                                  FotoService fotoService) { // NOVO parâmetro
         this.configuracaoService = configuracaoService;
         this.authUtil = authUtil;
+        this.fotoService = fotoService; // NOVO
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +102,26 @@ public class ConfiguracaoController {
                 dto.getFormasPagamento()
         );
         return ResponseEntity.ok("Detalhes atualizados!");
+    }
+
+    // NOVO — upload dedicado da logo do estabelecimento (multipart), mesmo
+    // padrão do endpoint de foto de perfil do profissional: comprime via
+    // FotoService, sobe pro R2 com chave fixa e grava a URL pública em
+    // Estabelecimento.fotoPerfil.
+    @PostMapping(value = "/estabelecimento/logo", consumes = "multipart/form-data")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> uploadLogoEstabelecimento(@RequestParam("arquivo") MultipartFile arquivo,
+                                                                         Authentication auth) throws IOException {
+        String url = fotoService.atualizarLogoEstabelecimento(authUtil.getEstabelecimentoId(auth), arquivo);
+        return ResponseEntity.ok(Map.of("fotoPerfil", url));
+    }
+
+    // NOVO — remove a logo do estabelecimento (R2 + campo no banco).
+    @DeleteMapping("/estabelecimento/logo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> removerLogoEstabelecimento(Authentication auth) {
+        fotoService.removerLogoEstabelecimento(authUtil.getEstabelecimentoId(auth));
+        return ResponseEntity.ok("Logo removida!");
     }
 
     @PatchMapping("/sinal")

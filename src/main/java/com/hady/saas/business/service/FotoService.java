@@ -6,6 +6,7 @@ import com.hady.saas.application.dto.FotoProfissionalDTO;
 import com.hady.saas.domain.fotocliente.FotoCliente;
 import com.hady.saas.domain.fotoprofissional.FotoProfissional;
 import com.hady.saas.domain.cliente.Cliente;
+import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.infrastructure.repository.*;
 import net.coobird.thumbnailator.Thumbnails;
@@ -38,6 +39,7 @@ public class FotoService {
     private final ProfissionalRepository profissionalRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final RespostaAnamneseRepository respostaAnamneseRepository;
+    private final EstabelecimentoRepository estabelecimentoRepository; // NOVO
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
 
@@ -67,6 +69,7 @@ public class FotoService {
                        ProfissionalRepository profissionalRepository,
                        AgendamentoRepository agendamentoRepository,
                        RespostaAnamneseRepository respostaAnamneseRepository,
+                       EstabelecimentoRepository estabelecimentoRepository, // NOVO
                        S3Client s3Client,
                        S3Presigner s3Presigner) {
         this.fotoClienteRepository = fotoClienteRepository;
@@ -75,6 +78,7 @@ public class FotoService {
         this.profissionalRepository = profissionalRepository;
         this.agendamentoRepository = agendamentoRepository;
         this.respostaAnamneseRepository = respostaAnamneseRepository;
+        this.estabelecimentoRepository = estabelecimentoRepository; // NOVO
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
     }
@@ -301,6 +305,41 @@ public class FotoService {
         deletarR2(key);
         profissional.setFotoPerfil(null);
         profissionalRepository.save(profissional);
+    }
+
+    // ─── LOGO DO ESTABELECIMENTO (pública, chave fixa) ─────────────────────────
+    // NOVO — mesmo padrão da foto de perfil do profissional acima: chave fixa
+    // que se sobrescreve a cada upload, URL pública direta do R2 (sem presign),
+    // pois a logo sempre aparece na página pública sem autenticação.
+    // Reaproveita o campo Estabelecimento.fotoPerfil (mesmo nome já usado para
+    // o profissional), já exposto em EstabelecimentoResponseDTO.
+
+    @Transactional
+    public String atualizarLogoEstabelecimento(Long estabelecimentoId, MultipartFile arquivo) throws IOException {
+        validarArquivo(arquivo);
+
+        Estabelecimento estabelecimento = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        String key = "estabelecimentos/" + estabelecimentoId + "/logo.jpg";
+        uploadComprimido(arquivo, key);
+
+        String urlPublica = r2PublicUrl + "/" + key;
+        estabelecimento.setFotoPerfil(urlPublica);
+        estabelecimentoRepository.save(estabelecimento);
+
+        return urlPublica;
+    }
+
+    @Transactional
+    public void removerLogoEstabelecimento(Long estabelecimentoId) {
+        Estabelecimento estabelecimento = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        String key = "estabelecimentos/" + estabelecimentoId + "/logo.jpg";
+        deletarR2(key);
+        estabelecimento.setFotoPerfil(null);
+        estabelecimentoRepository.save(estabelecimento);
     }
 
     // ─── SERVE ARQUIVO AUTENTICADO (fotos de profissionais — painel) ──────────
