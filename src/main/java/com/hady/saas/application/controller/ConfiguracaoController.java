@@ -40,7 +40,13 @@ public class ConfiguracaoController {
                 est.isAceitaPagamento(),
                 est.isExigirSinal(),
                 est.getTipoSinal(),
-                est.getValorSinal()
+                est.getValorSinal(),
+                est.getFotoPerfil(),
+                est.getInstagram(),
+                est.getWhatsappContato(),
+                est.getFacebook(),
+                est.getComodidades(),
+                est.getFormasPagamento()
         );
         return ResponseEntity.ok(dto);
     }
