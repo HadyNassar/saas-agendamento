@@ -55,7 +55,8 @@ public class ConfiguracaoController {
                 est.getWhatsappContato(),
                 est.getFacebook(),
                 new ArrayList<>(est.getComodidades()),
-                new ArrayList<>(est.getFormasPagamento())
+                new ArrayList<>(est.getFormasPagamento()),
+                est.getTipo() != null ? est.getTipo().name() : null
         );
         return ResponseEntity.ok(dto);
     }
@@ -122,6 +123,18 @@ public class ConfiguracaoController {
     public ResponseEntity<String> removerLogoEstabelecimento(Authentication auth) {
         fotoService.removerLogoEstabelecimento(authUtil.getEstabelecimentoId(auth));
         return ResponseEntity.ok("Logo removida!");
+    }
+
+    // NOVO — Aba "Estabelecimento": permite trocar o tipo depois de criada a
+    // conta. Antes só era definido no cadastro (RegistroDTO) e nunca mais
+    // podia ser alterado.
+    @PatchMapping("/tipo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> atualizarTipo(@RequestBody Map<String, String> body,
+                                                Authentication auth) {
+        String tipo = body.get("tipo");
+        configuracaoService.atualizarTipo(authUtil.getEstabelecimentoId(auth), tipo);
+        return ResponseEntity.ok("Tipo do estabelecimento atualizado!");
     }
 
     @PatchMapping("/sinal")

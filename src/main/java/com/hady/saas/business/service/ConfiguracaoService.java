@@ -65,6 +65,23 @@ public class ConfiguracaoService {
     }
 
     @Transactional
+    public void atualizarTipo(Long estabelecimentoId, String tipo) {
+        Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        if (tipo == null || tipo.isBlank()) {
+            throw new RuntimeException("Informe o tipo de estabelecimento.");
+        }
+        try {
+            est.setTipo(com.hady.saas.domain.enums.TipoEstabelecimento.valueOf(tipo));
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Tipo de estabelecimento inválido.");
+        }
+
+        estabelecimentoRepository.save(est);
+    }
+
+    @Transactional
     public void atualizarSinal(Long estabelecimentoId, Boolean exigirSinal, String tipoSinal, BigDecimal valorSinal) {
         Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));

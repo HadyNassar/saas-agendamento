@@ -28,6 +28,7 @@ public class EstabelecimentoResponseDTO {
     private String facebook;
     private List<String> comodidades;
     private List<String> formasPagamento;
+    private String tipo;
 
     public EstabelecimentoResponseDTO() {}
 
@@ -38,7 +39,8 @@ public class EstabelecimentoResponseDTO {
                                       boolean mpConectado, boolean aceitaPagamento,
                                       boolean exigirSinal, String tipoSinal, BigDecimal valorSinal,
                                       String fotoPerfil, String instagram, String whatsappContato,
-                                      String facebook, List<String> comodidades, List<String> formasPagamento) {
+                                      String facebook, List<String> comodidades, List<String> formasPagamento,
+                                      String tipo) {
         this.id = id;
         this.nome = nome;
         this.slug = slug;
@@ -58,6 +60,7 @@ public class EstabelecimentoResponseDTO {
         this.facebook = facebook;
         this.comodidades = comodidades;
         this.formasPagamento = formasPagamento;
+        this.tipo = tipo;
     }
 
     public Long getId()                    { return id; }
@@ -116,4 +119,7 @@ public class EstabelecimentoResponseDTO {
 
     public List<String> getFormasPagamento()                            { return formasPagamento; }
     public void setFormasPagamento(List<String> formasPagamento)        { this.formasPagamento = formasPagamento; }
+
+    public String getTipo()                { return tipo; }
+    public void setTipo(String tipo)       { this.tipo = tipo; }
 }
