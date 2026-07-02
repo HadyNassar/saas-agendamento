@@ -52,6 +52,10 @@ public class PerfilPublicoController {
         res.put("instagram",   est.getInstagram());
         res.put("whatsapp",    est.getWhatsappContato());
         res.put("facebook",    est.getFacebook());
+        // Tipo do estabelecimento (label PT-BR), exibido como badge abaixo do
+        // nome/logo na página pública. Atualiza sozinho quando o usuário troca
+        // o tipo no painel — não é mais um texto fixo "Salão de Beleza".
+        res.put("tipo",        est.getTipo() != null ? est.getTipo().getLabel() : null);
         return ResponseEntity.ok(res);
     }
 

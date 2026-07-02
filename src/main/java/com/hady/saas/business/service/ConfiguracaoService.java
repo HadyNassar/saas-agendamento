@@ -17,13 +17,16 @@ public class ConfiguracaoService {
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EstabelecimentoService estabelecimentoService;
 
     public ConfiguracaoService(EstabelecimentoRepository estabelecimentoRepository,
                                UsuarioRepository usuarioRepository,
-                               PasswordEncoder passwordEncoder) {
+                               PasswordEncoder passwordEncoder,
+                               EstabelecimentoService estabelecimentoService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.estabelecimentoService = estabelecimentoService;
     }
 
     @Transactional(readOnly = true)
@@ -50,7 +53,17 @@ public class ConfiguracaoService {
 
         // CORREÇÃO: nome também protegido por null check, igual aos outros campos.
         // Assim o PATCH /detalhes pode passar null sem apagar o nome existente.
-        if (nome != null)              est.setNome(nome);
+        //
+        // Link público vinculado ao nome: sempre que o nome realmente mudar
+        // (ignorando espaços nas pontas e diferença de maiúscula/minúscula),
+        // o slug é recalculado a partir do novo nome, garantindo unicidade
+        // (sufixo -1, -2... se já existir outro estabelecimento com o mesmo
+        // nome). Não há endpoint separado para editar o slug — ele é sempre
+        // derivado do nome automaticamente.
+        if (nome != null && !nome.isBlank() && !nome.trim().equalsIgnoreCase(est.getNome())) {
+            est.setNome(nome.trim());
+            est.setSlug(estabelecimentoService.gerarSlugUnico(nome.trim(), est.getId()));
+        }
         if (telefone != null)          est.setTelefone(telefone);
         if (endereco != null)          est.setEndereco(endereco);
         if (mesesAntecipacao != null)  est.setMesesAntecipacao(mesesAntecipacao);

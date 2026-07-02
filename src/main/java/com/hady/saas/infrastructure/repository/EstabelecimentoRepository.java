@@ -15,6 +15,11 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
 
     boolean existsBySlug(String slug);
 
+    // Necessário para gerar slug único ao EDITAR um estabelecimento já existente:
+    // exclui o próprio registro da checagem, senão o slug atual dele sempre
+    // "colidiria consigo mesmo" e ganharia sufixo -1, -2... a cada salvamento.
+    boolean existsBySlugAndIdNot(String slug, Long id);
+
     // Novo — necessário para o MercadoPagoWebhook atualizar status da assinatura
     Optional<Estabelecimento> findByMpSubscriptionId(String mpSubscriptionId);
 }

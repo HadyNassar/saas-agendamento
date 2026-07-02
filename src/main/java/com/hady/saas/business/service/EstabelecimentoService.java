@@ -52,22 +52,41 @@ public class EstabelecimentoService {
         return salvo;
     }
 
-    // ── Salva estabelecimento garantindo slug único ───────────────────────────
+    // ── Salva estabelecimento NOVO garantindo slug único ──────────────────────
+    // Usado apenas no fluxo de registro (id ainda é null aqui).
     public Estabelecimento salvar(Estabelecimento estabelecimento) {
-        String slug = gerarSlug(estabelecimento.getNome());
-
-        String slugFinal = slug;
-        int contador = 1;
-        while (estabelecimentoRepository.existsBySlug(slugFinal)) {
-            slugFinal = slug + "-" + contador++;
-        }
-
-        estabelecimento.setSlug(slugFinal);
+        estabelecimento.setSlug(gerarSlugUnico(estabelecimento.getNome(), estabelecimento.getId()));
         return estabelecimentoRepository.save(estabelecimento);
+    }
+
+    // ── Regenera o slug de um estabelecimento JÁ EXISTENTE a partir do nome
+    // atual, mantendo unicidade. Chamado sempre que o nome muda (link público
+    // fica automaticamente vinculado ao nome, sem precisar de tela própria
+    // para editar o link). Se o slug calculado colidir, ganha sufixo -1, -2...
+    public String gerarSlugUnico(String nome, Long idEstabelecimentoAtual) {
+        String base = gerarSlug(nome);
+        if (base.isBlank()) base = "estabelecimento"; // fallback de segurança, nunca deixa slug vazio
+
+        String slugFinal = base;
+        int contador = 1;
+        while (slugColide(slugFinal, idEstabelecimentoAtual)) {
+            slugFinal = base + "-" + contador++;
+        }
+        return slugFinal;
+    }
+
+    // Checa colisão de slug ignorando o próprio registro (relevante em edição;
+    // em criação, idEstabelecimentoAtual é null e cai na checagem simples).
+    private boolean slugColide(String slug, Long idEstabelecimentoAtual) {
+        if (idEstabelecimentoAtual == null) {
+            return estabelecimentoRepository.existsBySlug(slug);
+        }
+        return estabelecimentoRepository.existsBySlugAndIdNot(slug, idEstabelecimentoAtual);
     }
 
     // "Barbearia do João" → "barbearia-do-joao"
     private String gerarSlug(String nome) {
+        if (nome == null) return "";
         return Normalizer.normalize(nome, Normalizer.Form.NFD)
                 .replaceAll("[^\\p{ASCII}]", "")
                 .toLowerCase()
