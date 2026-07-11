@@ -16,21 +16,19 @@ public class EstabelecimentoService {
 
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final UsuarioService usuarioService;
+    private final GeocodingService geocodingService;
 
     public EstabelecimentoService(EstabelecimentoRepository estabelecimentoRepository,
-                                  UsuarioService usuarioService) {
+                                  UsuarioService usuarioService,
+                                  GeocodingService geocodingService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioService = usuarioService;
+        this.geocodingService = geocodingService;
     }
 
-    // ── Registro público: estabelecimento + ADMIN em uma transação atômica ───
-    // O trial é iniciado aqui automaticamente — não depende de chamada extra
-    // do frontend. Funciona independente de como a conta foi criada
-    // (formulário, API, Postman, integração externa, etc).
     @Transactional
     public Estabelecimento registrar(RegistroDTO dto) {
 
-        // 1. Monta o estabelecimento com plano STANDARD e trial já iniciado
         Estabelecimento estab = new Estabelecimento();
         estab.setNome(dto.getNomeEstabelecimento());
         estab.setTipo(dto.getTipoEstabelecimento());
@@ -38,13 +36,16 @@ public class EstabelecimentoService {
         estab.setTelefone(dto.getTelefone());
         estab.setEndereco(dto.getEndereco());
         estab.iniciarTrial();
+
+        // Geocodifica o endereço automaticamente ao registrar
+        geocodificarSePossivel(estab);
+
         Estabelecimento salvo = salvar(estab);
 
-        // 2. Monta e salva o usuário ADMIN vinculado
         Usuario admin = new Usuario();
         admin.setNome(dto.getNome());
         admin.setEmail(dto.getEmail());
-        admin.setSenha(dto.getSenha());   // UsuarioService criptografa
+        admin.setSenha(dto.getSenha());
         admin.setRole(Role.ADMIN);
         admin.setEstabelecimento(salvo);
         usuarioService.salvarAdmin(admin);
@@ -52,20 +53,44 @@ public class EstabelecimentoService {
         return salvo;
     }
 
-    // ── Salva estabelecimento NOVO garantindo slug único ──────────────────────
-    // Usado apenas no fluxo de registro (id ainda é null aqui).
+    // Chamado ao atualizar dados do estabelecimento (endereço pode ter mudado)
+    @Transactional
+    public Estabelecimento atualizar(Estabelecimento estabelecimento, String novoEndereco) {
+        boolean enderecoMudou = novoEndereco != null &&
+                !novoEndereco.equals(estabelecimento.getEndereco());
+
+        estabelecimento.setEndereco(novoEndereco);
+
+        if (enderecoMudou) {
+            geocodificarSePossivel(estabelecimento);
+        }
+
+        return salvar(estabelecimento);
+    }
+
     public Estabelecimento salvar(Estabelecimento estabelecimento) {
         estabelecimento.setSlug(gerarSlugUnico(estabelecimento.getNome(), estabelecimento.getId()));
         return estabelecimentoRepository.save(estabelecimento);
     }
 
-    // ── Regenera o slug de um estabelecimento JÁ EXISTENTE a partir do nome
-    // atual, mantendo unicidade. Chamado sempre que o nome muda (link público
-    // fica automaticamente vinculado ao nome, sem precisar de tela própria
-    // para editar o link). Se o slug calculado colidir, ganha sufixo -1, -2...
+    // Geocodifica o endereço e salva lat/lng no estabelecimento
+    // Se falhar (endereço inválido, API fora, etc) não interrompe o fluxo
+    private void geocodificarSePossivel(Estabelecimento estab) {
+        if (estab.getEndereco() == null || estab.getEndereco().isBlank()) return;
+        try {
+            double[] coords = geocodingService.geocodificarEndereco(estab.getEndereco());
+            if (coords != null) {
+                estab.setLatitude(java.math.BigDecimal.valueOf(coords[0]));
+                estab.setLongitude(java.math.BigDecimal.valueOf(coords[1]));
+            }
+        } catch (Exception e) {
+            System.err.println("Geocodificação falhou silenciosamente: " + e.getMessage());
+        }
+    }
+
     public String gerarSlugUnico(String nome, Long idEstabelecimentoAtual) {
         String base = gerarSlug(nome);
-        if (base.isBlank()) base = "estabelecimento"; // fallback de segurança, nunca deixa slug vazio
+        if (base.isBlank()) base = "estabelecimento";
 
         String slugFinal = base;
         int contador = 1;
@@ -75,8 +100,6 @@ public class EstabelecimentoService {
         return slugFinal;
     }
 
-    // Checa colisão de slug ignorando o próprio registro (relevante em edição;
-    // em criação, idEstabelecimentoAtual é null e cai na checagem simples).
     private boolean slugColide(String slug, Long idEstabelecimentoAtual) {
         if (idEstabelecimentoAtual == null) {
             return estabelecimentoRepository.existsBySlug(slug);
@@ -84,7 +107,6 @@ public class EstabelecimentoService {
         return estabelecimentoRepository.existsBySlugAndIdNot(slug, idEstabelecimentoAtual);
     }
 
-    // "Barbearia do João" → "barbearia-do-joao"
     private String gerarSlug(String nome) {
         if (nome == null) return "";
         return Normalizer.normalize(nome, Normalizer.Form.NFD)

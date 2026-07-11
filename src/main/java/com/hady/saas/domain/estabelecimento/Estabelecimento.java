@@ -37,6 +37,18 @@ public class Estabelecimento {
     private String telefone;
     private String endereco;
 
+    // ── Localização geográfica (populada automaticamente via Google Geocoding) ─
+    @Column(precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(precision = 10, scale = 7)
+    private BigDecimal longitude;
+
+    private String cidade;
+    private String estado;
+    private String cep;
+    // ─────────────────────────────────────────────────────────────────────────
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime criadoEm;
@@ -152,6 +164,11 @@ public class Estabelecimento {
     public Plano getPlano()                    { return plano; }
     public String getTelefone()                { return telefone; }
     public String getEndereco()                { return endereco; }
+    public BigDecimal getLatitude()            { return latitude; }
+    public BigDecimal getLongitude()           { return longitude; }
+    public String getCidade()                  { return cidade; }
+    public String getEstado()                  { return estado; }
+    public String getCep()                     { return cep; }
     public LocalDateTime getCriadoEm()         { return criadoEm; }
     public boolean isAtivo()                   { return ativo; }
     public String getEvolutionInstanceName()   { return evolutionInstanceName; }
@@ -186,6 +203,11 @@ public class Estabelecimento {
     public void setPlano(Plano plano)                                  { this.plano = plano; }
     public void setTelefone(String telefone)                           { this.telefone = telefone; }
     public void setEndereco(String endereco)                           { this.endereco = endereco; }
+    public void setLatitude(BigDecimal latitude)                       { this.latitude = latitude; }
+    public void setLongitude(BigDecimal longitude)                     { this.longitude = longitude; }
+    public void setCidade(String cidade)                               { this.cidade = cidade; }
+    public void setEstado(String estado)                               { this.estado = estado; }
+    public void setCep(String cep)                                     { this.cep = cep; }
     public void setCriadoEm(LocalDateTime criadoEm)                   { this.criadoEm = criadoEm; }
     public void setAtivo(boolean ativo)                                { this.ativo = ativo; }
     public void setEvolutionInstanceName(String n)                     { this.evolutionInstanceName = n; }
