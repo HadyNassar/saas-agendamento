@@ -89,3 +89,8 @@ cors:
 
 encryption:
   secret-key: ${ENCRYPTION_SECRET_KEY:}
+
+google:
+  maps:
+    api:
+      key: ${GOOGLE_MAPS_API_KEY:}
