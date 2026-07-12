@@ -32,8 +32,6 @@ public class SecurityConfig {
     private final RateLimitFilter rateLimitFilter;
     private final PlanoAcessoFilter planoAcessoFilter;
 
-    // Origens CORS — configure no application.yml:
-    //   cors.allowed-origins: http://localhost:5173,https://agendara.com.br
     @Value("${cors.allowed-origins}")
     private String allowedOriginsRaw;
 
@@ -78,13 +76,14 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // ── Painel público do estabelecimento ─────────────────
-                        // FIX: /uploads/** removido — fotos de clientes são dados sensíveis (LGPD).
-                        // Use GET /painel/fotos/serve/{fotoId} com JWT para servir arquivos autenticados.
                         .requestMatchers("/app/**").permitAll()
 
                         // ── Mercado Pago ──────────────────────────────────────
                         .requestMatchers("/painel/mercadopago/callback").permitAll()
                         .requestMatchers("/webhook/mercadopago").permitAll()
+
+                        // ── Admin interno (geocodificação) ────────────────────
+                        .requestMatchers("/admin/**").permitAll()
 
                         // ── Tudo mais exige JWT ───────────────────────────────
                         .anyRequest().authenticated()
