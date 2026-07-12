@@ -18,15 +18,18 @@ public class ConfiguracaoService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final EstabelecimentoService estabelecimentoService;
+    private final GeocodingService geocodingService;
 
     public ConfiguracaoService(EstabelecimentoRepository estabelecimentoRepository,
                                UsuarioRepository usuarioRepository,
                                PasswordEncoder passwordEncoder,
-                               EstabelecimentoService estabelecimentoService) {
+                               EstabelecimentoService estabelecimentoService,
+                               GeocodingService geocodingService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.estabelecimentoService = estabelecimentoService;
+        this.geocodingService = geocodingService;
     }
 
     @Transactional(readOnly = true)
@@ -51,21 +54,18 @@ public class ConfiguracaoService {
         Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
-        // CORREÇÃO: nome também protegido por null check, igual aos outros campos.
-        // Assim o PATCH /detalhes pode passar null sem apagar o nome existente.
-        //
-        // Link público vinculado ao nome: sempre que o nome realmente mudar
-        // (ignorando espaços nas pontas e diferença de maiúscula/minúscula),
-        // o slug é recalculado a partir do novo nome, garantindo unicidade
-        // (sufixo -1, -2... se já existir outro estabelecimento com o mesmo
-        // nome). Não há endpoint separado para editar o slug — ele é sempre
-        // derivado do nome automaticamente.
         if (nome != null && !nome.isBlank() && !nome.trim().equalsIgnoreCase(est.getNome())) {
             est.setNome(nome.trim());
             est.setSlug(estabelecimentoService.gerarSlugUnico(nome.trim(), est.getId()));
         }
+
+        // Se o endereço mudou, regeocodifica automaticamente
+        if (endereco != null && !endereco.equals(est.getEndereco())) {
+            est.setEndereco(endereco);
+            geocodificarSePossivel(est);
+        }
+
         if (telefone != null)          est.setTelefone(telefone);
-        if (endereco != null)          est.setEndereco(endereco);
         if (mesesAntecipacao != null)  est.setMesesAntecipacao(mesesAntecipacao);
         if (fotoPerfil != null)        est.setFotoPerfil(fotoPerfil);
         if (instagram != null)         est.setInstagram(instagram);
@@ -75,6 +75,48 @@ public class ConfiguracaoService {
         if (formasPagamento != null)   est.setFormasPagamento(formasPagamento);
 
         estabelecimentoRepository.save(est);
+    }
+
+    // Popula coordenadas de todos os estabelecimentos que ainda não têm lat/lng
+    // Chamado pelo endpoint admin /admin/geocodificar-todos
+    @Transactional
+    public int geocodificarTodos() {
+        List<Estabelecimento> semCoordenadas = estabelecimentoRepository
+                .findAll()
+                .stream()
+                .filter(e -> e.getLatitude() == null && e.getEndereco() != null && !e.getEndereco().isBlank())
+                .toList();
+
+        int atualizados = 0;
+        for (Estabelecimento est : semCoordenadas) {
+            try {
+                double[] coords = geocodingService.geocodificarEndereco(est.getEndereco());
+                if (coords != null) {
+                    est.setLatitude(BigDecimal.valueOf(coords[0]));
+                    est.setLongitude(BigDecimal.valueOf(coords[1]));
+                    estabelecimentoRepository.save(est);
+                    atualizados++;
+                }
+                // Pausa para não estourar o rate limit da API
+                Thread.sleep(200);
+            } catch (Exception e) {
+                System.err.println("Erro ao geocodificar " + est.getNome() + ": " + e.getMessage());
+            }
+        }
+        return atualizados;
+    }
+
+    private void geocodificarSePossivel(Estabelecimento est) {
+        if (est.getEndereco() == null || est.getEndereco().isBlank()) return;
+        try {
+            double[] coords = geocodingService.geocodificarEndereco(est.getEndereco());
+            if (coords != null) {
+                est.setLatitude(BigDecimal.valueOf(coords[0]));
+                est.setLongitude(BigDecimal.valueOf(coords[1]));
+            }
+        } catch (Exception e) {
+            System.err.println("Geocodificação falhou silenciosamente: " + e.getMessage());
+        }
     }
 
     @Transactional
