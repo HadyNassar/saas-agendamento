@@ -3,9 +3,12 @@ package com.hady.saas.business.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class GeocodingService {
@@ -18,17 +21,23 @@ public class GeocodingService {
 
     public double[] geocodificarEndereco(String endereco) {
         try {
-            String url = UriComponentsBuilder
-                    .fromHttpUrl("https://maps.googleapis.com/maps/api/geocode/json")
-                    .queryParam("address", endereco)
-                    .queryParam("key", apiKey)
-                    .queryParam("region", "br")
-                    .toUriString();
+            String enderecoCodificado = URLEncoder.encode(endereco, StandardCharsets.UTF_8);
 
-            String response = restTemplate.getForObject(url, String.class);
+            String url = "https://maps.googleapis.com/maps/api/geocode/json"
+                    + "?address=" + enderecoCodificado
+                    + "&region=br"
+                    + "&key=" + apiKey;
+
+            String response = restTemplate.getForObject(URI.create(url), String.class);
             JsonNode root = objectMapper.readTree(response);
-            JsonNode results = root.path("results");
 
+            String status = root.path("status").asText();
+            if (!"OK".equals(status)) {
+                System.err.println("Geocoding retornou status: " + status + " para endereço: " + endereco);
+                return null;
+            }
+
+            JsonNode results = root.path("results");
             if (!results.isEmpty()) {
                 JsonNode location = results.get(0)
                         .path("geometry")
@@ -39,7 +48,7 @@ public class GeocodingService {
                 return new double[]{lat, lng};
             }
         } catch (Exception e) {
-            System.err.println("Erro ao geocodificar: " + e.getMessage());
+            System.err.println("Erro ao geocodificar '" + endereco + "': " + e.getMessage());
         }
         return null;
     }
