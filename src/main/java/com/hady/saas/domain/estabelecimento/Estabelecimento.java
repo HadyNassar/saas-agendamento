@@ -35,7 +35,20 @@ public class Estabelecimento {
     private Plano plano;
 
     private String telefone;
+
+    // Mantido por compatibilidade (endereço completo em texto único).
+    // Ainda é usado como fallback e para exibição rápida.
     private String endereco;
+
+    // ── Endereço estruturado (preenchido via busca de CEP) ──────────────────
+    private String logradouro;
+    private String numero;
+    private String complemento;
+    private String bairro;
+    private String cidade;
+    private String estado;
+    private String cep;
+    // ─────────────────────────────────────────────────────────────────────
 
     // ── Localização geográfica (populada automaticamente via Google Geocoding) ─
     @Column(precision = 10, scale = 7)
@@ -43,10 +56,6 @@ public class Estabelecimento {
 
     @Column(precision = 10, scale = 7)
     private BigDecimal longitude;
-
-    private String cidade;
-    private String estado;
-    private String cep;
     // ─────────────────────────────────────────────────────────────────────────
 
     @CreationTimestamp
@@ -156,6 +165,22 @@ public class Estabelecimento {
         this.trialFim = LocalDate.now().plusDays(5);
     }
 
+    // Monta o endereço completo em texto a partir dos campos estruturados.
+    // Usado para geocodificação e para exibição quando 'endereco' livre não foi informado.
+    public String getEnderecoCompleto() {
+        if (logradouro == null || logradouro.isBlank()) {
+            return endereco; // fallback pro campo antigo, se estruturado não existir
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(logradouro);
+        if (numero != null && !numero.isBlank()) sb.append(", ").append(numero);
+        if (bairro != null && !bairro.isBlank()) sb.append(" - ").append(bairro);
+        if (cidade != null && !cidade.isBlank()) sb.append(", ").append(cidade);
+        if (estado != null && !estado.isBlank()) sb.append(" - ").append(estado);
+        if (cep != null && !cep.isBlank()) sb.append(", ").append(cep);
+        return sb.toString();
+    }
+
     // ── GETTERS ──────────────────────────────────────────────────────────────
     public Long getId()                        { return id; }
     public String getNome()                    { return nome; }
@@ -164,11 +189,15 @@ public class Estabelecimento {
     public Plano getPlano()                    { return plano; }
     public String getTelefone()                { return telefone; }
     public String getEndereco()                { return endereco; }
-    public BigDecimal getLatitude()            { return latitude; }
-    public BigDecimal getLongitude()           { return longitude; }
+    public String getLogradouro()              { return logradouro; }
+    public String getNumero()                  { return numero; }
+    public String getComplemento()             { return complemento; }
+    public String getBairro()                  { return bairro; }
     public String getCidade()                  { return cidade; }
     public String getEstado()                  { return estado; }
     public String getCep()                     { return cep; }
+    public BigDecimal getLatitude()            { return latitude; }
+    public BigDecimal getLongitude()           { return longitude; }
     public LocalDateTime getCriadoEm()         { return criadoEm; }
     public boolean isAtivo()                   { return ativo; }
     public String getEvolutionInstanceName()   { return evolutionInstanceName; }
@@ -203,11 +232,15 @@ public class Estabelecimento {
     public void setPlano(Plano plano)                                  { this.plano = plano; }
     public void setTelefone(String telefone)                           { this.telefone = telefone; }
     public void setEndereco(String endereco)                           { this.endereco = endereco; }
-    public void setLatitude(BigDecimal latitude)                       { this.latitude = latitude; }
-    public void setLongitude(BigDecimal longitude)                     { this.longitude = longitude; }
+    public void setLogradouro(String logradouro)                       { this.logradouro = logradouro; }
+    public void setNumero(String numero)                               { this.numero = numero; }
+    public void setComplemento(String complemento)                     { this.complemento = complemento; }
+    public void setBairro(String bairro)                               { this.bairro = bairro; }
     public void setCidade(String cidade)                               { this.cidade = cidade; }
     public void setEstado(String estado)                               { this.estado = estado; }
     public void setCep(String cep)                                     { this.cep = cep; }
+    public void setLatitude(BigDecimal latitude)                       { this.latitude = latitude; }
+    public void setLongitude(BigDecimal longitude)                     { this.longitude = longitude; }
     public void setCriadoEm(LocalDateTime criadoEm)                   { this.criadoEm = criadoEm; }
     public void setAtivo(boolean ativo)                                { this.ativo = ativo; }
     public void setEvolutionInstanceName(String n)                     { this.evolutionInstanceName = n; }

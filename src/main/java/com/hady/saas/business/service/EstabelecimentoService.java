@@ -9,6 +9,7 @@ import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.text.Normalizer;
 
 @Service
@@ -26,6 +27,7 @@ public class EstabelecimentoService {
         this.geocodingService = geocodingService;
     }
 
+    // ── Registro público: estabelecimento + ADMIN em uma transação atômica ───
     @Transactional
     public Estabelecimento registrar(RegistroDTO dto) {
 
@@ -34,10 +36,24 @@ public class EstabelecimentoService {
         estab.setTipo(dto.getTipoEstabelecimento());
         estab.setPlano(Plano.STANDARD);
         estab.setTelefone(dto.getTelefone());
-        estab.setEndereco(dto.getEndereco());
+
+        // Endereço estruturado (vindo do CEP preenchido automaticamente no front)
+        estab.setCep(dto.getCep());
+        estab.setLogradouro(dto.getLogradouro());
+        estab.setNumero(dto.getNumero());
+        estab.setComplemento(dto.getComplemento());
+        estab.setBairro(dto.getBairro());
+        estab.setCidade(dto.getCidade());
+        estab.setEstado(dto.getEstado());
+
+        // Mantém o campo de texto livre preenchido também, por compatibilidade
+        // com telas antigas que ainda leem 'endereco'.
+        estab.setEndereco(estab.getEnderecoCompleto());
+
         estab.iniciarTrial();
 
-        // Geocodifica o endereço automaticamente ao registrar
+        // Geocodifica usando o endereço completo estruturado — muito mais
+        // confiável que texto livre, pois sempre tem cidade e estado.
         geocodificarSePossivel(estab);
 
         Estabelecimento salvo = salvar(estab);
@@ -53,35 +69,20 @@ public class EstabelecimentoService {
         return salvo;
     }
 
-    // Chamado ao atualizar dados do estabelecimento (endereço pode ter mudado)
-    @Transactional
-    public Estabelecimento atualizar(Estabelecimento estabelecimento, String novoEndereco) {
-        boolean enderecoMudou = novoEndereco != null &&
-                !novoEndereco.equals(estabelecimento.getEndereco());
-
-        estabelecimento.setEndereco(novoEndereco);
-
-        if (enderecoMudou) {
-            geocodificarSePossivel(estabelecimento);
-        }
-
-        return salvar(estabelecimento);
-    }
-
     public Estabelecimento salvar(Estabelecimento estabelecimento) {
         estabelecimento.setSlug(gerarSlugUnico(estabelecimento.getNome(), estabelecimento.getId()));
         return estabelecimentoRepository.save(estabelecimento);
     }
 
-    // Geocodifica o endereço e salva lat/lng no estabelecimento
-    // Se falhar (endereço inválido, API fora, etc) não interrompe o fluxo
+    // Geocodifica o endereço e salva lat/lng. Silencioso em caso de falha.
     private void geocodificarSePossivel(Estabelecimento estab) {
-        if (estab.getEndereco() == null || estab.getEndereco().isBlank()) return;
+        String enderecoCompleto = estab.getEnderecoCompleto();
+        if (enderecoCompleto == null || enderecoCompleto.isBlank()) return;
         try {
-            double[] coords = geocodingService.geocodificarEndereco(estab.getEndereco());
+            double[] coords = geocodingService.geocodificarEndereco(enderecoCompleto);
             if (coords != null) {
-                estab.setLatitude(java.math.BigDecimal.valueOf(coords[0]));
-                estab.setLongitude(java.math.BigDecimal.valueOf(coords[1]));
+                estab.setLatitude(BigDecimal.valueOf(coords[0]));
+                estab.setLongitude(BigDecimal.valueOf(coords[1]));
             }
         } catch (Exception e) {
             System.err.println("Geocodificação falhou silenciosamente: " + e.getMessage());

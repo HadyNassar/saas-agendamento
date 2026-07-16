@@ -37,7 +37,32 @@ public class RegistroDTO {
     // Upgrade de plano ocorre exclusivamente via /painel/assinatura.
 
     private String telefone;
+
+    // Mantido por compatibilidade — pode ser preenchido automaticamente
+    // a partir dos campos estruturados abaixo, no service.
     private String endereco;
+
+    // ── Endereço estruturado (preenchido via busca automática de CEP no front) ─
+    @NotBlank(message = "CEP obrigatório")
+    private String cep;
+
+    @NotBlank(message = "Logradouro obrigatório")
+    private String logradouro;
+
+    @NotBlank(message = "Número obrigatório")
+    private String numero;
+
+    private String complemento;
+
+    @NotBlank(message = "Bairro obrigatório")
+    private String bairro;
+
+    @NotBlank(message = "Cidade obrigatória")
+    private String cidade;
+
+    @NotBlank(message = "Estado obrigatório")
+    private String estado;
+    // ─────────────────────────────────────────────────────────────────────────
 
     // GETTERS
     public String getNome()                              { return nome; }
@@ -47,6 +72,13 @@ public class RegistroDTO {
     public TipoEstabelecimento getTipoEstabelecimento()  { return tipoEstabelecimento; }
     public String getTelefone()                          { return telefone; }
     public String getEndereco()                          { return endereco; }
+    public String getCep()                                { return cep; }
+    public String getLogradouro()                         { return logradouro; }
+    public String getNumero()                             { return numero; }
+    public String getComplemento()                        { return complemento; }
+    public String getBairro()                             { return bairro; }
+    public String getCidade()                             { return cidade; }
+    public String getEstado()                             { return estado; }
 
     // SETTERS
     public void setNome(String nome)                                        { this.nome = nome; }
@@ -56,4 +88,11 @@ public class RegistroDTO {
     public void setTipoEstabelecimento(TipoEstabelecimento v)               { this.tipoEstabelecimento = v; }
     public void setTelefone(String telefone)                                { this.telefone = telefone; }
     public void setEndereco(String endereco)                                { this.endereco = endereco; }
+    public void setCep(String cep)                                          { this.cep = cep; }
+    public void setLogradouro(String logradouro)                            { this.logradouro = logradouro; }
+    public void setNumero(String numero)                                    { this.numero = numero; }
+    public void setComplemento(String complemento)                          { this.complemento = complemento; }
+    public void setBairro(String bairro)                                    { this.bairro = bairro; }
+    public void setCidade(String cidade)                                    { this.cidade = cidade; }
+    public void setEstado(String estado)                                    { this.estado = estado; }
 }
