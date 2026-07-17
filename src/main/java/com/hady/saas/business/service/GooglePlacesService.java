@@ -101,32 +101,51 @@ public class GooglePlacesService {
             int raioMetros = (int) (raioKm * 1000);
             String keyword = URLEncoder.encode("salão de beleza estética", StandardCharsets.UTF_8);
 
-            String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+            String urlBase = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
                     + "?location=" + lat + "," + lng
                     + "&radius=" + raioMetros
                     + "&keyword=" + keyword
                     + "&type=beauty_salon"
                     + "&key=" + apiKey;
 
-            String response = restTemplate.getForObject(URI.create(url), String.class);
-            JsonNode root = objectMapper.readTree(response);
+            String proximaPageToken = null;
+            int paginasBuscadas = 0;
+            final int MAX_PAGINAS = 3; // Google permite no máximo 3 páginas (60 resultados)
 
-            String status = root.path("status").asText();
-            if (!"OK".equals(status) && !"ZERO_RESULTS".equals(status)) {
-                System.err.println("Google Places retornou status: " + status);
-                return resultados;
-            }
+            do {
+                String url = urlBase;
+                if (proximaPageToken != null) {
+                    // O token só fica válido alguns segundos após ser emitido —
+                    // sem essa espera o Google devolve status INVALID_REQUEST.
+                    Thread.sleep(2000);
+                    url = urlBase + "&pagetoken=" + proximaPageToken;
+                }
 
-            for (JsonNode place : root.path("results")) {
-                String placeId = place.path("place_id").asText();
-                String nome = place.path("name").asText();
-                String endereco = place.path("vicinity").asText();
-                double placeLat = place.path("geometry").path("location").path("lat").asDouble();
-                double placeLng = place.path("geometry").path("location").path("lng").asDouble();
-                Double avaliacao = place.has("rating") ? place.path("rating").asDouble() : null;
+                String response = restTemplate.getForObject(URI.create(url), String.class);
+                JsonNode root = objectMapper.readTree(response);
 
-                resultados.add(new SalaoExternoDTO(placeId, nome, endereco, placeLat, placeLng, avaliacao, null));
-            }
+                String status = root.path("status").asText();
+                if (!"OK".equals(status) && !"ZERO_RESULTS".equals(status)) {
+                    System.err.println("Google Places retornou status: " + status);
+                    break;
+                }
+
+                for (JsonNode place : root.path("results")) {
+                    String placeId = place.path("place_id").asText();
+                    String nome = place.path("name").asText();
+                    String endereco = place.path("vicinity").asText();
+                    double placeLat = place.path("geometry").path("location").path("lat").asDouble();
+                    double placeLng = place.path("geometry").path("location").path("lng").asDouble();
+                    Double avaliacao = place.has("rating") ? place.path("rating").asDouble() : null;
+
+                    resultados.add(new SalaoExternoDTO(placeId, nome, endereco, placeLat, placeLng, avaliacao, null));
+                }
+
+                proximaPageToken = root.has("next_page_token") ? root.path("next_page_token").asText() : null;
+                paginasBuscadas++;
+
+            } while (proximaPageToken != null && paginasBuscadas < MAX_PAGINAS);
+
         } catch (Exception e) {
             System.err.println("Erro ao buscar no Google Places: " + e.getMessage());
         }
