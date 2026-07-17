@@ -62,24 +62,48 @@ public class ConfiguracaoController {
     }
 
     // Aba "Estabelecimento" — atualiza nome, telefone, endereço e logo.
-    // Mantém @Valid pois nome é obrigatório nesta aba.
+    // Se o front enviar CEP preenchido, usa o fluxo de endereço estruturado
+    // (regeocodifica com base em logradouro/bairro/cidade/estado, mais preciso).
+    // Caso contrário, mantém o fluxo antigo de texto livre por compatibilidade.
     @PutMapping("/estabelecimento")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> editarEstabelecimento(@Valid @RequestBody EditarEstabelecimentoDTO dto,
                                                         Authentication auth) {
-        configuracaoService.editarEstabelecimento(
-                authUtil.getEstabelecimentoId(auth),
-                dto.getNome(),
-                dto.getTelefone(),
-                dto.getEndereco(),
-                dto.getMesesAntecipacao(),
-                dto.getFotoPerfil(),
-                dto.getInstagram(),
-                dto.getWhatsappContato(),
-                dto.getFacebook(),
-                dto.getComodidades(),
-                dto.getFormasPagamento()
-        );
+        if (dto.getCep() != null && !dto.getCep().isBlank()) {
+            configuracaoService.editarEstabelecimentoComEnderecoEstruturado(
+                    authUtil.getEstabelecimentoId(auth),
+                    dto.getNome(),
+                    dto.getTelefone(),
+                    dto.getCep(),
+                    dto.getLogradouro(),
+                    dto.getNumero(),
+                    dto.getComplemento(),
+                    dto.getBairro(),
+                    dto.getCidade(),
+                    dto.getEstado(),
+                    dto.getMesesAntecipacao(),
+                    dto.getFotoPerfil(),
+                    dto.getInstagram(),
+                    dto.getWhatsappContato(),
+                    dto.getFacebook(),
+                    dto.getComodidades(),
+                    dto.getFormasPagamento()
+            );
+        } else {
+            configuracaoService.editarEstabelecimento(
+                    authUtil.getEstabelecimentoId(auth),
+                    dto.getNome(),
+                    dto.getTelefone(),
+                    dto.getEndereco(),
+                    dto.getMesesAntecipacao(),
+                    dto.getFotoPerfil(),
+                    dto.getInstagram(),
+                    dto.getWhatsappContato(),
+                    dto.getFacebook(),
+                    dto.getComodidades(),
+                    dto.getFormasPagamento()
+            );
+        }
         return ResponseEntity.ok("Dados do estabelecimento atualizados!");
     }
 

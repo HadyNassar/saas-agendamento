@@ -38,6 +38,8 @@ public class ConfiguracaoService {
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
     }
 
+    // Assinatura original mantida — chamada pelo ConfiguracaoController já existente.
+    // Endereço aqui continua sendo o campo de texto livre 'endereco'.
     @Transactional
     public void editarEstabelecimento(Long estabelecimentoId,
                                       String nome,
@@ -59,10 +61,10 @@ public class ConfiguracaoService {
             est.setSlug(estabelecimentoService.gerarSlugUnico(nome.trim(), est.getId()));
         }
 
-        // Se o endereço mudou, regeocodifica automaticamente
+        // Se o endereço em texto livre mudou, regeocodifica automaticamente
         if (endereco != null && !endereco.equals(est.getEndereco())) {
             est.setEndereco(endereco);
-            geocodificarSePossivel(est);
+            geocodificarSePossivel(est, endereco);
         }
 
         if (telefone != null)          est.setTelefone(telefone);
@@ -77,28 +79,88 @@ public class ConfiguracaoService {
         estabelecimentoRepository.save(est);
     }
 
-    // Popula coordenadas de todos os estabelecimentos que ainda não têm lat/lng
-    // Chamado pelo endpoint admin /admin/geocodificar-todos
+    // Sobrecarga nova — usada quando o front envia endereço ESTRUTURADO
+    // (CEP, logradouro, número, bairro, cidade, estado preenchidos via busca de CEP).
+    // Chame esta a partir do Controller quando os campos estruturados vierem preenchidos.
+    @Transactional
+    public void editarEstabelecimentoComEnderecoEstruturado(Long estabelecimentoId,
+                                                            String nome,
+                                                            String telefone,
+                                                            String cep,
+                                                            String logradouro,
+                                                            String numero,
+                                                            String complemento,
+                                                            String bairro,
+                                                            String cidade,
+                                                            String estado,
+                                                            Integer mesesAntecipacao,
+                                                            String fotoPerfil,
+                                                            String instagram,
+                                                            String whatsappContato,
+                                                            String facebook,
+                                                            List<String> comodidades,
+                                                            List<String> formasPagamento) {
+
+        Estabelecimento est = estabelecimentoRepository.findById(estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
+
+        if (nome != null && !nome.isBlank() && !nome.trim().equalsIgnoreCase(est.getNome())) {
+            est.setNome(nome.trim());
+            est.setSlug(estabelecimentoService.gerarSlugUnico(nome.trim(), est.getId()));
+        }
+
+        boolean enderecoMudou = cep != null && (
+                !cep.equals(est.getCep()) ||
+                        (logradouro != null && !logradouro.equals(est.getLogradouro())) ||
+                        (numero != null && !numero.equals(est.getNumero()))
+        );
+
+        if (cep != null)          est.setCep(cep);
+        if (logradouro != null)   est.setLogradouro(logradouro);
+        if (numero != null)       est.setNumero(numero);
+        if (complemento != null)  est.setComplemento(complemento);
+        if (bairro != null)       est.setBairro(bairro);
+        if (cidade != null)       est.setCidade(cidade);
+        if (estado != null)       est.setEstado(estado);
+
+        if (enderecoMudou) {
+            est.setEndereco(est.getEnderecoCompleto());
+            geocodificarSePossivel(est, est.getEnderecoCompleto());
+        }
+
+        if (telefone != null)          est.setTelefone(telefone);
+        if (mesesAntecipacao != null)  est.setMesesAntecipacao(mesesAntecipacao);
+        if (fotoPerfil != null)        est.setFotoPerfil(fotoPerfil);
+        if (instagram != null)         est.setInstagram(instagram);
+        if (whatsappContato != null)   est.setWhatsappContato(whatsappContato);
+        if (facebook != null)          est.setFacebook(facebook);
+        if (comodidades != null)       est.setComodidades(comodidades);
+        if (formasPagamento != null)   est.setFormasPagamento(formasPagamento);
+
+        estabelecimentoRepository.save(est);
+    }
+
+    // Popula coordenadas de todos os estabelecimentos que ainda não têm lat/lng.
+    // Chamado pelo endpoint admin POST /admin/geocodificar-todos
     @Transactional
     public int geocodificarTodos() {
         List<Estabelecimento> semCoordenadas = estabelecimentoRepository
                 .findAll()
                 .stream()
-                .filter(e -> e.getLatitude() == null && e.getEndereco() != null && !e.getEndereco().isBlank())
+                .filter(e -> e.getLatitude() == null && e.getEnderecoCompleto() != null && !e.getEnderecoCompleto().isBlank())
                 .toList();
 
         int atualizados = 0;
         for (Estabelecimento est : semCoordenadas) {
             try {
-                double[] coords = geocodingService.geocodificarEndereco(est.getEndereco());
+                double[] coords = geocodingService.geocodificarEndereco(est.getEnderecoCompleto());
                 if (coords != null) {
                     est.setLatitude(BigDecimal.valueOf(coords[0]));
                     est.setLongitude(BigDecimal.valueOf(coords[1]));
                     estabelecimentoRepository.save(est);
                     atualizados++;
                 }
-                // Pausa para não estourar o rate limit da API
-                Thread.sleep(200);
+                Thread.sleep(200); // evita estourar rate limit da API do Google
             } catch (Exception e) {
                 System.err.println("Erro ao geocodificar " + est.getNome() + ": " + e.getMessage());
             }
@@ -106,10 +168,10 @@ public class ConfiguracaoService {
         return atualizados;
     }
 
-    private void geocodificarSePossivel(Estabelecimento est) {
-        if (est.getEndereco() == null || est.getEndereco().isBlank()) return;
+    private void geocodificarSePossivel(Estabelecimento est, String endereco) {
+        if (endereco == null || endereco.isBlank()) return;
         try {
-            double[] coords = geocodingService.geocodificarEndereco(est.getEndereco());
+            double[] coords = geocodingService.geocodificarEndereco(endereco);
             if (coords != null) {
                 est.setLatitude(BigDecimal.valueOf(coords[0]));
                 est.setLongitude(BigDecimal.valueOf(coords[1]));

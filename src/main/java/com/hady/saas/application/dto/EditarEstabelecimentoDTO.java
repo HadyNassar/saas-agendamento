@@ -11,7 +11,20 @@ public class EditarEstabelecimentoDTO {
     private String nome;
 
     private String telefone;
+
+    // Mantido por compatibilidade — quem não usar CEP continua editando por aqui.
     private String endereco;
+
+    // ── Endereço estruturado (opcional na edição — se vier, sobrescreve
+    // os campos separados e regeocodifica automaticamente) ──────────────────
+    private String cep;
+    private String logradouro;
+    private String numero;
+    private String complemento;
+    private String bairro;
+    private String cidade;
+    private String estado;
+    // ─────────────────────────────────────────────────────────────────────
 
     @Min(value = 1, message = "Mínimo de 1 mês")
     @Max(value = 12, message = "Máximo de 12 meses")
@@ -34,6 +47,27 @@ public class EditarEstabelecimentoDTO {
 
     public String getEndereco()                   { return endereco; }
     public void setEndereco(String endereco)      { this.endereco = endereco; }
+
+    public String getCep()                         { return cep; }
+    public void setCep(String cep)                 { this.cep = cep; }
+
+    public String getLogradouro()                  { return logradouro; }
+    public void setLogradouro(String logradouro)   { this.logradouro = logradouro; }
+
+    public String getNumero()                      { return numero; }
+    public void setNumero(String numero)           { this.numero = numero; }
+
+    public String getComplemento()                 { return complemento; }
+    public void setComplemento(String complemento) { this.complemento = complemento; }
+
+    public String getBairro()                      { return bairro; }
+    public void setBairro(String bairro)           { this.bairro = bairro; }
+
+    public String getCidade()                      { return cidade; }
+    public void setCidade(String cidade)           { this.cidade = cidade; }
+
+    public String getEstado()                      { return estado; }
+    public void setEstado(String estado)           { this.estado = estado; }
 
     public Integer getMesesAntecipacao()          { return mesesAntecipacao; }
     public void setMesesAntecipacao(Integer m)    { this.mesesAntecipacao = m; }
