@@ -81,6 +81,18 @@ public class MapaPublicoController {
                 .toList();
     }
 
+    // Busca o telefone de um salão específico (pin cinza) sob demanda —
+    // chamado só quando o usuário clica pra prospectar, nunca em lote.
+    // Cache de 30 dias já é tratado dentro do GooglePlacesService.
+    // GET /api/public/estabelecimentos-externos/{googlePlaceId}/telefone
+    @GetMapping("/estabelecimentos-externos/{googlePlaceId}/telefone")
+    public java.util.Map<String, String> buscarTelefoneExterno(@PathVariable String googlePlaceId) {
+        String telefone = googlePlacesService.buscarTelefone(googlePlaceId);
+        java.util.Map<String, String> resposta = new java.util.HashMap<>();
+        resposta.put("telefone", telefone);
+        return resposta;
+    }
+
     // Perfil público completo de um salão — aberto ao clicar no pin verde.
     // GET /api/public/estabelecimentos/{slug}
     // Também registra a visualização (usada depois como argumento comercial:
