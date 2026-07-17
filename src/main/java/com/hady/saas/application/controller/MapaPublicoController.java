@@ -5,6 +5,7 @@ import com.hady.saas.application.dto.EstabelecimentoPerfilPublicoDTO;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -56,6 +57,7 @@ public class MapaPublicoController {
     // Também registra a visualização (usada depois como argumento comercial:
     // "seu salão teve X visualizações esse mês").
     @GetMapping("/estabelecimentos/{slug}")
+    @Transactional(readOnly = true)
     public EstabelecimentoPerfilPublicoDTO buscarPerfil(@PathVariable String slug,
                                                         @RequestParam(required = false, defaultValue = "mapa") String origem) {
         Estabelecimento e = estabelecimentoRepository.findBySlug(slug)
