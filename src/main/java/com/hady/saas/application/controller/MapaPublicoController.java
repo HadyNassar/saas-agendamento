@@ -2,6 +2,8 @@ package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.EstabelecimentoMapaDTO;
 import com.hady.saas.application.dto.EstabelecimentoPerfilPublicoDTO;
+import com.hady.saas.application.dto.SalaoExternoDTO;
+import com.hady.saas.business.service.GooglePlacesService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,11 +21,14 @@ public class MapaPublicoController {
 
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final GooglePlacesService googlePlacesService;
 
     public MapaPublicoController(EstabelecimentoRepository estabelecimentoRepository,
-                                 JdbcTemplate jdbcTemplate) {
+                                 JdbcTemplate jdbcTemplate,
+                                 GooglePlacesService googlePlacesService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.googlePlacesService = googlePlacesService;
     }
 
     // Lista estabelecimentos cadastrados (pins verdes) próximos a um ponto.
@@ -49,6 +54,30 @@ public class MapaPublicoController {
                         e.getFotoPerfil(),
                         e.temAcesso()
                 ))
+                .toList();
+    }
+
+    // Busca salões da região via Google Places (pins cinza) — estabelecimentos
+    // que NÃO estão cadastrados no sistema. Usado como ferramenta de
+    // prospecção: o admin vê quem existe na região e ainda não é cliente.
+    // GET /api/public/estabelecimentos-externos?lat=-20.55&lng=-54.62&raio=10
+    @GetMapping("/estabelecimentos-externos")
+    public List<SalaoExternoDTO> buscarExternos(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "10") double raio) {
+
+        List<SalaoExternoDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
+
+        // Remove da lista os que já são pins verdes (evita mostrar o mesmo
+        // salão duas vezes — uma cadastrada e outra "fantasma").
+        List<Estabelecimento> jaCadastrados = estabelecimentoRepository.buscarProximos(lat, lng, raio);
+        List<String> nomesJaCadastrados = jaCadastrados.stream()
+                .map(e -> e.getNome().trim().toLowerCase())
+                .toList();
+
+        return todosDoGoogle.stream()
+                .filter(externo -> !nomesJaCadastrados.contains(externo.getNome().trim().toLowerCase()))
                 .toList();
     }
 
