@@ -63,9 +63,7 @@ public class MapaPublicoController {
         Estabelecimento e = estabelecimentoRepository.findBySlug(slug)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
-        registrarVisualizacao(e.getId(), origem);
-
-        return new EstabelecimentoPerfilPublicoDTO(
+        EstabelecimentoPerfilPublicoDTO dto = new EstabelecimentoPerfilPublicoDTO(
                 e.getId(),
                 e.getNome(),
                 e.getSlug(),
@@ -86,19 +84,26 @@ public class MapaPublicoController {
                 new ArrayList<>(e.getFormasPagamento()),
                 e.temAcesso()
         );
+
+        // Registrado FORA da transação de leitura (readOnly) — método próprio
+        // com @Transactional(propagation = REQUIRES_NEW), roda em transação
+        // separada e nunca invalida a consulta acima mesmo se falhar.
+        registrarVisualizacao(e.getId(), origem);
+
+        return dto;
     }
 
-    // Grava um registro simples de visualização. Usa JdbcTemplate direto
-    // (sem entidade JPA própria) por ser só um log de eventos, sem necessidade
-    // de relacionamentos ou regras de negócio.
-    private void registrarVisualizacao(Long estabelecimentoId, String origem) {
+    // Grava um registro simples de visualização em transação PRÓPRIA,
+    // separada da consulta principal (readOnly). Assim, mesmo se o insert
+    // falhar por qualquer motivo, nunca compromete a resposta do perfil.
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void registrarVisualizacao(Long estabelecimentoId, String origem) {
         try {
             jdbcTemplate.update(
                     "INSERT INTO mapa_visualizacoes (salao_id, origem) VALUES (?, ?)",
                     estabelecimentoId, origem
             );
         } catch (Exception e) {
-            // Nunca deve quebrar a navegação do usuário por causa de uma falha de log
             System.err.println("Falha ao registrar visualização: " + e.getMessage());
         }
     }
