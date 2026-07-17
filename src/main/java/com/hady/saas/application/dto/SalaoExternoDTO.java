@@ -1,7 +1,10 @@
 package com.hady.saas.application.dto;
 
 // Representa um salão encontrado via Google Places que NÃO está
-// cadastrado no sistema — usado para os pins cinza do mapa.
+// cadastrado no sistema — usado para os pins cinza do mapa PÚBLICO.
+// Propositalmente NÃO expõe avaliação nem telefone ao cliente final —
+// isso é reservado ao pin verde (cadastrado), como incentivo comercial
+// para o dono do salão assinar o sistema.
 public class SalaoExternoDTO {
 
     private String googlePlaceId;
@@ -9,21 +12,16 @@ public class SalaoExternoDTO {
     private String endereco;
     private double latitude;
     private double longitude;
-    private Double avaliacaoGoogle; // pode ser null se o local não tiver avaliações
-    private String telefone;        // pode ser null — Places nem sempre retorna
 
     public SalaoExternoDTO() {}
 
     public SalaoExternoDTO(String googlePlaceId, String nome, String endereco,
-                           double latitude, double longitude,
-                           Double avaliacaoGoogle, String telefone) {
+                           double latitude, double longitude) {
         this.googlePlaceId = googlePlaceId;
         this.nome = nome;
         this.endereco = endereco;
         this.latitude = latitude;
         this.longitude = longitude;
-        this.avaliacaoGoogle = avaliacaoGoogle;
-        this.telefone = telefone;
     }
 
     public String getGooglePlaceId()                    { return googlePlaceId; }
@@ -40,10 +38,4 @@ public class SalaoExternoDTO {
 
     public double getLongitude()                          { return longitude; }
     public void setLongitude(double longitude)             { this.longitude = longitude; }
-
-    public Double getAvaliacaoGoogle()                        { return avaliacaoGoogle; }
-    public void setAvaliacaoGoogle(Double avaliacaoGoogle)    { this.avaliacaoGoogle = avaliacaoGoogle; }
-
-    public String getTelefone()                          { return telefone; }
-    public void setTelefone(String telefone)             { this.telefone = telefone; }
 }

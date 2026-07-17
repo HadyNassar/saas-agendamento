@@ -2,7 +2,7 @@ package com.hady.saas.business.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hady.saas.application.dto.SalaoExternoDTO;
+import com.hady.saas.application.dto.SalaoExternoAdminDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -43,7 +43,7 @@ public class GooglePlacesService {
     // Busca salões de estética/beleza próximos a um ponto.
     // Usa cache de 24h em banco antes de consultar a API paga do Google.
     @Transactional
-    public List<SalaoExternoDTO> buscarSaloesProximos(double lat, double lng, double raioKm) {
+    public List<SalaoExternoAdminDTO> buscarSaloesProximos(double lat, double lng, double raioKm) {
         String chaveBusca = "lista_" + gerarChaveBusca(lat, lng, raioKm);
 
         String cacheado = buscarDoCache(chaveBusca, CACHE_LISTA_HORAS);
@@ -51,7 +51,7 @@ public class GooglePlacesService {
             return desserializar(cacheado);
         }
 
-        List<SalaoExternoDTO> resultado = buscarNaApiGoogle(lat, lng, raioKm);
+        List<SalaoExternoAdminDTO> resultado = buscarNaApiGoogle(lat, lng, raioKm);
         salvarNoCache(chaveBusca, objetoParaJson(resultado));
         return resultado;
     }
@@ -138,7 +138,7 @@ public class GooglePlacesService {
         }
     }
 
-    private String objetoParaJson(List<SalaoExternoDTO> lista) {
+    private String objetoParaJson(List<SalaoExternoAdminDTO> lista) {
         try {
             return objectMapper.writeValueAsString(lista);
         } catch (Exception e) {
@@ -147,17 +147,17 @@ public class GooglePlacesService {
         }
     }
 
-    private List<SalaoExternoDTO> desserializar(String json) {
+    private List<SalaoExternoAdminDTO> desserializar(String json) {
         try {
-            return List.of(objectMapper.readValue(json, SalaoExternoDTO[].class));
+            return List.of(objectMapper.readValue(json, SalaoExternoAdminDTO[].class));
         } catch (Exception e) {
             System.err.println("Erro ao desserializar cache: " + e.getMessage());
             return new ArrayList<>();
         }
     }
 
-    private List<SalaoExternoDTO> buscarNaApiGoogle(double lat, double lng, double raioKm) {
-        List<SalaoExternoDTO> resultados = new ArrayList<>();
+    private List<SalaoExternoAdminDTO> buscarNaApiGoogle(double lat, double lng, double raioKm) {
+        List<SalaoExternoAdminDTO> resultados = new ArrayList<>();
         try {
             int raioMetros = (int) (raioKm * 1000);
             String keyword = URLEncoder.encode("salão de beleza estética", StandardCharsets.UTF_8);
@@ -199,7 +199,7 @@ public class GooglePlacesService {
                     double placeLng = place.path("geometry").path("location").path("lng").asDouble();
                     Double avaliacao = place.has("rating") ? place.path("rating").asDouble() : null;
 
-                    resultados.add(new SalaoExternoDTO(placeId, nome, endereco, placeLat, placeLng, avaliacao, null));
+                    resultados.add(new SalaoExternoAdminDTO(placeId, nome, endereco, placeLat, placeLng, avaliacao, null));
                 }
 
                 proximaPageToken = root.has("next_page_token") ? root.path("next_page_token").asText() : null;

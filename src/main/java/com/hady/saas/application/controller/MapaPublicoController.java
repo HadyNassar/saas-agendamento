@@ -2,21 +2,30 @@ package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.EstabelecimentoMapaDTO;
 import com.hady.saas.application.dto.EstabelecimentoPerfilPublicoDTO;
+import com.hady.saas.application.dto.RegistrarInteresseDTO;
+import com.hady.saas.application.dto.SalaoExternoAdminDTO;
 import com.hady.saas.application.dto.SalaoExternoDTO;
 import com.hady.saas.business.service.GooglePlacesService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-// Endpoints PÚBLICOS do mapa — sem autenticação, consumidos pelo
-// frontend em encontre.oagendara.com.br
+// Endpoints do mapa. A maioria é pública (sem autenticação), consumida
+// pelo frontend em encontre.oagendara.com.br. Os endpoints de prospecção
+// (avaliação e telefone de salão não cadastrado) exigem login de ADMIN —
+// são a vantagem exclusiva de quem usa o sistema pra prospectar, e nunca
+// ficam visíveis ao cliente final nem a um salão não pagante.
 @RestController
-@RequestMapping("/api/public")
 public class MapaPublicoController {
 
     private final EstabelecimentoRepository estabelecimentoRepository;
@@ -31,9 +40,11 @@ public class MapaPublicoController {
         this.googlePlacesService = googlePlacesService;
     }
 
-    // Lista estabelecimentos cadastrados (pins verdes) próximos a um ponto.
-    // GET /api/public/estabelecimentos?lat=-20.55&lng=-54.62&raio=10
-    @GetMapping("/estabelecimentos")
+    // ═══════════════════════════════════════════════════════════════════
+    // PÚBLICO — sem autenticação
+    // ═══════════════════════════════════════════════════════════════════
+
+    @GetMapping("/api/public/estabelecimentos")
     public List<EstabelecimentoMapaDTO> listarProximos(
             @RequestParam double lat,
             @RequestParam double lng,
@@ -57,47 +68,38 @@ public class MapaPublicoController {
                 .toList();
     }
 
-    // Busca salões da região via Google Places (pins cinza) — estabelecimentos
-    // que NÃO estão cadastrados no sistema. Usado como ferramenta de
-    // prospecção: o admin vê quem existe na região e ainda não é cliente.
-    // GET /api/public/estabelecimentos-externos?lat=-20.55&lng=-54.62&raio=10
-    @GetMapping("/estabelecimentos-externos")
-    public List<SalaoExternoDTO> buscarExternos(
+    // Busca salões da região via Google Places (pins cinza) para o CLIENTE
+    // FINAL. Propositalmente SEM avaliação e SEM telefone — isso incentiva
+    // o dono do salão a se cadastrar pra desbloquear esses dados pro público.
+    @GetMapping("/api/public/estabelecimentos-externos")
+    public List<SalaoExternoDTO> buscarExternosPublico(
             @RequestParam double lat,
             @RequestParam double lng,
             @RequestParam(defaultValue = "10") double raio) {
 
-        List<SalaoExternoDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
-
-        // Remove da lista os que já são pins verdes (evita mostrar o mesmo
-        // salão duas vezes — uma cadastrada e outra "fantasma").
-        List<Estabelecimento> jaCadastrados = estabelecimentoRepository.buscarProximos(lat, lng, raio);
-        List<String> nomesJaCadastrados = jaCadastrados.stream()
-                .map(e -> e.getNome().trim().toLowerCase())
-                .toList();
-
-        return todosDoGoogle.stream()
-                .filter(externo -> !nomesJaCadastrados.contains(externo.getNome().trim().toLowerCase()))
+        return filtrarNaoCadastrados(lat, lng, raio).stream()
+                .map(s -> new SalaoExternoDTO(
+                        s.getGooglePlaceId(), s.getNome(), s.getEndereco(),
+                        s.getLatitude(), s.getLongitude()
+                ))
                 .toList();
     }
 
-    // Busca o telefone de um salão específico (pin cinza) sob demanda —
-    // chamado só quando o usuário clica pra prospectar, nunca em lote.
-    // Cache de 30 dias já é tratado dentro do GooglePlacesService.
-    // GET /api/public/estabelecimentos-externos/{googlePlaceId}/telefone
-    @GetMapping("/estabelecimentos-externos/{googlePlaceId}/telefone")
-    public java.util.Map<String, String> buscarTelefoneExterno(@PathVariable String googlePlaceId) {
-        String telefone = googlePlacesService.buscarTelefone(googlePlaceId);
-        java.util.Map<String, String> resposta = new java.util.HashMap<>();
-        resposta.put("telefone", telefone);
-        return resposta;
+    // Registra o interesse de um cliente final que tentou agendar em um
+    // salão AINDA NÃO cadastrado (pin cinza). Vira munição comercial.
+    @PostMapping("/api/public/interesse")
+    public ResponseEntity<String> registrarInteresse(@Valid @RequestBody RegistrarInteresseDTO dto) {
+        jdbcTemplate.update(
+                "INSERT INTO mapa_interesses (nome_cliente, contato, google_place_id, nome_salao_externo) " +
+                        "VALUES (?, ?, ?, ?)",
+                dto.getNomeCliente(), dto.getContato(), dto.getGooglePlaceId(), dto.getNomeSalaoExterno()
+        );
+        return ResponseEntity.ok("Interesse registrado! Avisaremos assim que este salão estiver disponível.");
     }
 
-    // Perfil público completo de um salão — aberto ao clicar no pin verde.
-    // GET /api/public/estabelecimentos/{slug}
-    // Também registra a visualização (usada depois como argumento comercial:
-    // "seu salão teve X visualizações esse mês").
-    @GetMapping("/estabelecimentos/{slug}")
+    // Perfil público completo de um salão CADASTRADO — aberto ao clicar
+    // no pin verde. Registra a visualização (argumento comercial futuro).
+    @GetMapping("/api/public/estabelecimentos/{slug}")
     @Transactional(readOnly = true)
     public EstabelecimentoPerfilPublicoDTO buscarPerfil(@PathVariable String slug,
                                                         @RequestParam(required = false, defaultValue = "mapa") String origem) {
@@ -126,18 +128,55 @@ public class MapaPublicoController {
                 e.temAcesso()
         );
 
-        // Registrado FORA da transação de leitura (readOnly) — método próprio
-        // com @Transactional(propagation = REQUIRES_NEW), roda em transação
-        // separada e nunca invalida a consulta acima mesmo se falhar.
         registrarVisualizacao(e.getId(), origem);
 
         return dto;
     }
 
-    // Grava um registro simples de visualização em transação PRÓPRIA,
-    // separada da consulta principal (readOnly). Assim, mesmo se o insert
-    // falhar por qualquer motivo, nunca compromete a resposta do perfil.
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    // ═══════════════════════════════════════════════════════════════════
+    // ADMIN — exige login (rota /admin/mapa/** cai em .anyRequest()
+    // .authenticated() do SecurityConfig, então só logado acessa)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Mesma busca de pins cinza, mas com avaliação do Google incluída —
+    // ferramenta de prospecção pra você avaliar quais salões abordar primeiro.
+    @GetMapping("/admin/mapa/estabelecimentos-externos")
+    public List<SalaoExternoAdminDTO> buscarExternosAdmin(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "10") double raio) {
+
+        return filtrarNaoCadastrados(lat, lng, raio);
+    }
+
+    // Busca o telefone de um salão específico (pin cinza) sob demanda —
+    // só o admin autenticado pode chamar isso, nunca o cliente final.
+    @GetMapping("/admin/mapa/estabelecimentos-externos/{googlePlaceId}/telefone")
+    public Map<String, String> buscarTelefoneExterno(@PathVariable String googlePlaceId) {
+        String telefone = googlePlacesService.buscarTelefone(googlePlaceId);
+        Map<String, String> resposta = new HashMap<>();
+        resposta.put("telefone", telefone);
+        return resposta;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Métodos privados
+    // ═══════════════════════════════════════════════════════════════════
+
+    private List<SalaoExternoAdminDTO> filtrarNaoCadastrados(double lat, double lng, double raio) {
+        List<SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
+
+        List<Estabelecimento> jaCadastrados = estabelecimentoRepository.buscarProximos(lat, lng, raio);
+        List<String> nomesJaCadastrados = jaCadastrados.stream()
+                .map(e -> e.getNome().trim().toLowerCase())
+                .toList();
+
+        return todosDoGoogle.stream()
+                .filter(externo -> !nomesJaCadastrados.contains(externo.getNome().trim().toLowerCase()))
+                .toList();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registrarVisualizacao(Long estabelecimentoId, String origem) {
         try {
             jdbcTemplate.update(

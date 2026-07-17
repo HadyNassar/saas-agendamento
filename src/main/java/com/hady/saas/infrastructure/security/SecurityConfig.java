@@ -82,8 +82,14 @@ public class SecurityConfig {
                         .requestMatchers("/painel/mercadopago/callback").permitAll()
                         .requestMatchers("/webhook/mercadopago").permitAll()
 
-                        // ── Admin interno (geocodificação) ────────────────────
-                        .requestMatchers("/admin/**").permitAll()
+                        // ── Endpoint interno de geocodificação em massa (uso pontual,
+                        // chamado manualmente por você via curl/Postman) ─────────
+                        .requestMatchers("/admin/geocodificar-todos").permitAll()
+
+                        // ── /admin/mapa/** exige login — são os dados de prospecção
+                        // (avaliação e telefone de salão não cadastrado) que só o
+                        // dono do sistema deve enxergar, nunca o cliente final ────
+                        // (cai automaticamente em .anyRequest().authenticated() abaixo)
 
                         // ── Mapa público (sem login — consumido pelo frontend
                         // em encontre.oagendara.com.br) ───────────────────────
