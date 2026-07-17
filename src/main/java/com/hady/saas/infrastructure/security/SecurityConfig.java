@@ -85,6 +85,10 @@ public class SecurityConfig {
                         // ── Admin interno (geocodificação) ────────────────────
                         .requestMatchers("/admin/**").permitAll()
 
+                        // ── Mapa público (sem login — consumido pelo frontend
+                        // em encontre.oagendara.com.br) ───────────────────────
+                        .requestMatchers("/api/public/**").permitAll()
+
                         // ── Tudo mais exige JWT ───────────────────────────────
                         .anyRequest().authenticated()
                 )
