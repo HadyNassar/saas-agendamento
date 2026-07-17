@@ -48,11 +48,14 @@ public class MapaPublicoController {
     public List<EstabelecimentoMapaDTO> listarProximos(
             @RequestParam double lat,
             @RequestParam double lng,
-            @RequestParam(defaultValue = "10") double raio) {
+            @RequestParam(defaultValue = "10") double raio,
+            @RequestParam(required = false) String tipo) {
 
         List<Estabelecimento> proximos = estabelecimentoRepository.buscarProximos(lat, lng, raio);
 
         return proximos.stream()
+                .filter(e -> tipo == null || tipo.isBlank()
+                        || (e.getTipo() != null && e.getTipo().name().equalsIgnoreCase(tipo)))
                 .map(e -> new EstabelecimentoMapaDTO(
                         e.getId(),
                         e.getNome(),
@@ -75,12 +78,15 @@ public class MapaPublicoController {
     public List<SalaoExternoDTO> buscarExternosPublico(
             @RequestParam double lat,
             @RequestParam double lng,
-            @RequestParam(defaultValue = "10") double raio) {
+            @RequestParam(defaultValue = "10") double raio,
+            @RequestParam(required = false) String categoria) {
 
         return filtrarNaoCadastrados(lat, lng, raio).stream()
+                .filter(s -> categoria == null || categoria.isBlank()
+                        || (s.getCategoriaBusca() != null && s.getCategoriaBusca().equalsIgnoreCase(categoria)))
                 .map(s -> new SalaoExternoDTO(
                         s.getGooglePlaceId(), s.getNome(), s.getEndereco(),
-                        s.getLatitude(), s.getLongitude()
+                        s.getLatitude(), s.getLongitude(), s.getCategoriaBusca()
                 ))
                 .toList();
     }

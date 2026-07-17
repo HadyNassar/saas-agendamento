@@ -12,16 +12,18 @@ public class SalaoExternoDTO {
     private String endereco;
     private double latitude;
     private double longitude;
+    private String categoriaBusca; // keyword que encontrou este resultado — usada pro filtro do mapa
 
     public SalaoExternoDTO() {}
 
     public SalaoExternoDTO(String googlePlaceId, String nome, String endereco,
-                           double latitude, double longitude) {
+                           double latitude, double longitude, String categoriaBusca) {
         this.googlePlaceId = googlePlaceId;
         this.nome = nome;
         this.endereco = endereco;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.categoriaBusca = categoriaBusca;
     }
 
     public String getGooglePlaceId()                    { return googlePlaceId; }
@@ -38,4 +40,7 @@ public class SalaoExternoDTO {
 
     public double getLongitude()                          { return longitude; }
     public void setLongitude(double longitude)             { this.longitude = longitude; }
+
+    public String getCategoriaBusca()                       { return categoriaBusca; }
+    public void setCategoriaBusca(String categoriaBusca)   { this.categoriaBusca = categoriaBusca; }
 }

@@ -12,12 +12,13 @@ public class SalaoExternoAdminDTO {
     private double longitude;
     private Double avaliacaoGoogle;
     private String telefone; // populado sob demanda via /telefone, pode vir null aqui
+    private String categoriaBusca; // keyword que encontrou este resultado
 
     public SalaoExternoAdminDTO() {}
 
     public SalaoExternoAdminDTO(String googlePlaceId, String nome, String endereco,
                                 double latitude, double longitude,
-                                Double avaliacaoGoogle, String telefone) {
+                                Double avaliacaoGoogle, String telefone, String categoriaBusca) {
         this.googlePlaceId = googlePlaceId;
         this.nome = nome;
         this.endereco = endereco;
@@ -25,6 +26,7 @@ public class SalaoExternoAdminDTO {
         this.longitude = longitude;
         this.avaliacaoGoogle = avaliacaoGoogle;
         this.telefone = telefone;
+        this.categoriaBusca = categoriaBusca;
     }
 
     public String getGooglePlaceId()                    { return googlePlaceId; }
@@ -47,4 +49,7 @@ public class SalaoExternoAdminDTO {
 
     public String getTelefone()                          { return telefone; }
     public void setTelefone(String telefone)             { this.telefone = telefone; }
+
+    public String getCategoriaBusca()                       { return categoriaBusca; }
+    public void setCategoriaBusca(String categoriaBusca)   { this.categoriaBusca = categoriaBusca; }
 }

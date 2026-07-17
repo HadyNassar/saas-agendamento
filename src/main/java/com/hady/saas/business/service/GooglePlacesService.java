@@ -26,10 +26,11 @@ public class GooglePlacesService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final JdbcTemplate jdbcTemplate;
 
-    // Cache da LISTA de salões válido por 24 horas — a lista de estabelecimentos
-    // de uma região muda muito pouco dia a dia, então não faz sentido pagar
-    // de novo toda hora. Reduz o custo em até 4x comparado ao cache de 6h.
-    private static final int CACHE_LISTA_HORAS = 24;
+    // Cache da LISTA de salões válido por 60 horas (2,5 dias) — com 13
+    // categorias buscadas por região (para cobrir todos os tipos de
+    // estabelecimento), o cache mais longo compensa o aumento de chamadas
+    // por busca, mantendo o custo total baixo sem perder atualidade real.
+    private static final int CACHE_LISTA_HORAS = 60;
 
     // Cache do TELEFONE (Place Details) válido por 30 dias — telefone de
     // estabelecimento praticamente nunca muda. Uma vez buscado, fica
@@ -156,60 +157,79 @@ public class GooglePlacesService {
         }
     }
 
+    // Keywords de busca por categoria — cobre as 14 categorias do
+    // TipoEstabelecimento. Usamos keyword textual (não o parâmetro "type" do
+    // Google, que só cobre poucos tipos oficiais) para pegar salão, spa,
+    // studio de pilates, nutricionista etc, todos na mesma varredura.
+    private static final String[] KEYWORDS_BUSCA = {
+            "salão de beleza",
+            "barbearia",
+            "clínica de estética",
+            "studio de manicure",
+            "spa estética",
+            "studio de sobrancelha",
+            "massoterapia",
+            "podologia",
+            "nutricionista",
+            "personal trainer",
+            "studio de pilates",
+            "academia de lutas",
+            "yoga meditação"
+    };
+
     private List<SalaoExternoAdminDTO> buscarNaApiGoogle(double lat, double lng, double raioKm) {
-        List<SalaoExternoAdminDTO> resultados = new ArrayList<>();
-        try {
-            int raioMetros = (int) (raioKm * 1000);
-            String keyword = URLEncoder.encode("salão de beleza estética", StandardCharsets.UTF_8);
+        // Usa um Map por place_id pra evitar duplicar o mesmo estabelecimento
+        // caso ele apareça em mais de uma busca por keyword (ex: um spa que
+        // também aparece em "clínica de estética").
+        java.util.Map<String, SalaoExternoAdminDTO> resultadosPorId = new java.util.LinkedHashMap<>();
+        int raioMetros = (int) (raioKm * 1000);
 
-            String urlBase = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-                    + "?location=" + lat + "," + lng
-                    + "&radius=" + raioMetros
-                    + "&keyword=" + keyword
-                    + "&type=beauty_salon"
-                    + "&key=" + apiKey;
-
-            String proximaPageToken = null;
-            int paginasBuscadas = 0;
-            final int MAX_PAGINAS = 3; // Google permite no máximo 3 páginas (60 resultados)
-
-            do {
-                String url = urlBase;
-                if (proximaPageToken != null) {
-                    // O token só fica válido alguns segundos após ser emitido —
-                    // sem essa espera o Google devolve status INVALID_REQUEST.
-                    Thread.sleep(2000);
-                    url = urlBase + "&pagetoken=" + proximaPageToken;
-                }
-
-                String response = restTemplate.getForObject(URI.create(url), String.class);
-                JsonNode root = objectMapper.readTree(response);
-
-                String status = root.path("status").asText();
-                if (!"OK".equals(status) && !"ZERO_RESULTS".equals(status)) {
-                    System.err.println("Google Places retornou status: " + status);
-                    break;
-                }
-
-                for (JsonNode place : root.path("results")) {
-                    String placeId = place.path("place_id").asText();
-                    String nome = place.path("name").asText();
-                    String endereco = place.path("vicinity").asText();
-                    double placeLat = place.path("geometry").path("location").path("lat").asDouble();
-                    double placeLng = place.path("geometry").path("location").path("lng").asDouble();
-                    Double avaliacao = place.has("rating") ? place.path("rating").asDouble() : null;
-
-                    resultados.add(new SalaoExternoAdminDTO(placeId, nome, endereco, placeLat, placeLng, avaliacao, null));
-                }
-
-                proximaPageToken = root.has("next_page_token") ? root.path("next_page_token").asText() : null;
-                paginasBuscadas++;
-
-            } while (proximaPageToken != null && paginasBuscadas < MAX_PAGINAS);
-
-        } catch (Exception e) {
-            System.err.println("Erro ao buscar no Google Places: " + e.getMessage());
+        for (String termoBusca : KEYWORDS_BUSCA) {
+            try {
+                buscarPorKeyword(lat, lng, raioMetros, termoBusca, resultadosPorId);
+            } catch (Exception e) {
+                System.err.println("Erro ao buscar '" + termoBusca + "' no Google Places: " + e.getMessage());
+            }
         }
-        return resultados;
+
+        return new ArrayList<>(resultadosPorId.values());
+    }
+
+    // Busca 1 página (20 resultados) por keyword — sem paginação profunda
+    // aqui, porque já rodamos 13 keywords diferentes; multiplicar por 3
+    // páginas cada deixaria o custo alto demais. 1 página por categoria
+    // já cobre bem a maioria das cidades médias.
+    private void buscarPorKeyword(double lat, double lng, int raioMetros, String termoBusca,
+                                  java.util.Map<String, SalaoExternoAdminDTO> resultadosPorId) throws Exception {
+        String keyword = URLEncoder.encode(termoBusca, StandardCharsets.UTF_8);
+
+        String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+                + "?location=" + lat + "," + lng
+                + "&radius=" + raioMetros
+                + "&keyword=" + keyword
+                + "&key=" + apiKey;
+
+        String response = restTemplate.getForObject(URI.create(url), String.class);
+        JsonNode root = objectMapper.readTree(response);
+
+        String status = root.path("status").asText();
+        if (!"OK".equals(status) && !"ZERO_RESULTS".equals(status)) {
+            System.err.println("Google Places retornou status '" + status + "' para keyword '" + termoBusca + "'");
+            return;
+        }
+
+        for (JsonNode place : root.path("results")) {
+            String placeId = place.path("place_id").asText();
+            if (resultadosPorId.containsKey(placeId)) continue; // já visto em outra keyword
+
+            String nome = place.path("name").asText();
+            String endereco = place.path("vicinity").asText();
+            double placeLat = place.path("geometry").path("location").path("lat").asDouble();
+            double placeLng = place.path("geometry").path("location").path("lng").asDouble();
+            Double avaliacao = place.has("rating") ? place.path("rating").asDouble() : null;
+
+            resultadosPorId.put(placeId,
+                    new SalaoExternoAdminDTO(placeId, nome, endereco, placeLat, placeLng, avaliacao, null, termoBusca));
+        }
     }
 }
