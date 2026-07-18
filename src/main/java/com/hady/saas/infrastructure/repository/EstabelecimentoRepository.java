@@ -16,18 +16,10 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
 
     boolean existsBySlug(String slug);
 
-    // Necessário para gerar slug único ao EDITAR um estabelecimento já existente:
-    // exclui o próprio registro da checagem, senão o slug atual dele sempre
-    // "colidiria consigo mesmo" e ganharia sufixo -1, -2... a cada salvamento.
     boolean existsBySlugAndIdNot(String slug, Long id);
 
-    // Necessário para o MercadoPagoWebhook atualizar status da assinatura
     Optional<Estabelecimento> findByMpSubscriptionId(String mpSubscriptionId);
 
-    // ── Mapa público ──────────────────────────────────────────────────────
-    // Busca estabelecimentos ativos com coordenadas dentro de um raio (km),
-    // usando a fórmula de Haversine direto no Postgres. Retorna ordenado do
-    // mais próximo pro mais distante.
     @Query(value = """
             SELECT * FROM estabelecimentos e
             WHERE e.ativo = true
@@ -51,4 +43,15 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
     List<Estabelecimento> buscarProximos(@Param("lat") double lat,
                                          @Param("lng") double lng,
                                          @Param("raioKm") double raioKm);
+
+    // Autocomplete por nome — usado na barra de busca do mapa público.
+    @Query(value = """
+            SELECT * FROM estabelecimentos e
+            WHERE e.ativo = true
+              AND e.latitude IS NOT NULL
+              AND LOWER(e.nome) LIKE LOWER(CONCAT('%', :termo, '%'))
+            ORDER BY e.nome ASC
+            LIMIT 8
+            """, nativeQuery = true)
+    List<Estabelecimento> buscarPorNome(@Param("termo") String termo);
 }
