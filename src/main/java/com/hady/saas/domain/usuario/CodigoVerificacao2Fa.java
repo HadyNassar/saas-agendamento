@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "codigo_verificacao_2fa")
-public class CodigoVerificacao2Fa {
+public class CodigoVerificacao2FA {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,9 +27,9 @@ public class CodigoVerificacao2Fa {
     @Column(name = "criado_em")
     private LocalDateTime criadoEm;
 
-    public CodigoVerificacao2Fa() {}
+    public CodigoVerificacao2FA() {}
 
-    public CodigoVerificacao2Fa(Long usuarioId, String codigo, LocalDateTime expiraEm) {
+    public CodigoVerificacao2FA(Long usuarioId, String codigo, LocalDateTime expiraEm) {
         this.usuarioId = usuarioId;
         this.codigo = codigo;
         this.expiraEm = expiraEm;
