@@ -2,6 +2,11 @@ package com.hady.saas.domain.enums;
 
 public enum Role {
 
+    // Dono do SaaS — acesso ao painel administrativo master, fora do
+    // escopo de qualquer estabelecimento. Não vinculado a nenhuma conta
+    // de salão (estabelecimento = null).
+    ADMIN_MASTER,
+
     // Acesso total. Máximo de 2 ADMINs por estabelecimento.
     ADMIN,
 

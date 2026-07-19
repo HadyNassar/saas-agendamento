@@ -32,6 +32,22 @@ public class JwtUtil {
                 .compact();
     }
 
+    // Token do ADMIN_MASTER — sem estabelecimento vinculado (eid = null) e
+    // com expiração mais curta (2h em vez de 8h), já que é uma conta com
+    // acesso a todos os dados do sistema; sessões mais curtas reduzem
+    // a janela de exposição em caso de token vazado.
+    public String gerarTokenAdminMaster(String username, Long usuarioId) {
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("uid", usuarioId)
+                .claim("eid", (Long) null)
+                .claim("role", "ADMIN_MASTER")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 2))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
     public String gerarTokenCliente(Long clienteId, String slug) {
         return Jwts.builder()
                 .setSubject("cliente:" + clienteId + ":" + slug)

@@ -75,12 +75,23 @@ public class SecurityConfig {
                                 "/auth/redefinir-senha"
                         ).permitAll()
 
+                        // ── Login do Admin Master (2FA) — são os próprios endpoints
+                        // de autenticação, por isso ficam públicos. O painel em si
+                        // (/admin-master/**) exige o JWT gerado por eles ──────────
+                        .requestMatchers(
+                                "/auth-master/login",
+                                "/auth-master/confirmar"
+                        ).permitAll()
+
                         // ── Painel público do estabelecimento ─────────────────
                         .requestMatchers("/app/**").permitAll()
 
                         // ── Mercado Pago ──────────────────────────────────────
                         .requestMatchers("/painel/mercadopago/callback").permitAll()
                         .requestMatchers("/webhook/mercadopago").permitAll()
+
+                        // ── ⚠️ TEMPORÁRIO — remover após criar o admin master ───
+                        .requestMatchers("/setup/**").permitAll()
 
                         // ── Endpoint interno de geocodificação em massa (uso pontual,
                         // chamado manualmente por você via curl/Postman) ─────────

@@ -28,8 +28,10 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
-    // ADMIN        → acesso total
-    // FUNCIONARIO  → acesso padrão
+    // ADMIN_MASTER → dono do SaaS, sem estabelecimento vinculado
+    // ADMIN        → acesso total dentro do próprio estabelecimento
+    // GERENTE      → acesso padrão
+    // PROFISSIONAL → acesso restrito à própria agenda
 
     // Atualizado sempre que a senha muda (reset ou troca manual).
     // O JwtAuthenticationFilter rejeita tokens emitidos ANTES deste instante,
@@ -37,8 +39,11 @@ public class Usuario {
     @Column(name = "senha_atualizada_em")
     private Instant senhaAtualizadaEm;
 
+    // Nullable: só é obrigatório para roles vinculadas a um salão
+    // (ADMIN, GERENTE, PROFISSIONAL). Um ADMIN_MASTER não pertence a
+    // nenhum estabelecimento específico — gerencia todos.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "estabelecimento_id", nullable = false)
+    @JoinColumn(name = "estabelecimento_id", nullable = true)
     private Estabelecimento estabelecimento;
 
     public Usuario() {}
