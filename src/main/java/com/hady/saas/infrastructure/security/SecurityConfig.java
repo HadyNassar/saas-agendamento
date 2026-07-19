@@ -90,6 +90,9 @@ public class SecurityConfig {
                         .requestMatchers("/painel/mercadopago/callback").permitAll()
                         .requestMatchers("/webhook/mercadopago").permitAll()
 
+                        // ── ⚠️ TEMPORÁRIO — remover após criar o admin master ───
+                        .requestMatchers("/setup/**").permitAll()
+
                         // ── Endpoint interno de geocodificação em massa (uso pontual,
                         // chamado manualmente por você via curl/Postman) ─────────
                         .requestMatchers("/admin/geocodificar-todos").permitAll()
@@ -102,6 +105,12 @@ public class SecurityConfig {
                         // ── Mapa público (sem login — consumido pelo frontend
                         // em encontre.oagendara.com.br) ───────────────────────
                         .requestMatchers("/api/public/**").permitAll()
+
+                        // ── Painel Admin Master — exige especificamente a role
+                        // ADMIN_MASTER, não apenas "estar logado". Qualquer usuário
+                        // de estabelecimento (ADMIN, GERENTE, PROFISSIONAL) é
+                        // barrado aqui mesmo com um JWT válido de outra área ──────
+                        .requestMatchers("/admin-master/**").hasRole("ADMIN_MASTER")
 
                         // ── Tudo mais exige JWT ───────────────────────────────
                         .anyRequest().authenticated()
