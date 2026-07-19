@@ -155,6 +155,7 @@ public class DashboardMasterService {
             LocalDate inicio = mes.atDay(1);
             LocalDate fim = mes.atEndOfMonth();
             String label = capitalizar(mes.getMonth().getDisplayName(TextStyle.SHORT, new Locale("pt", "BR")))
+                    .replace(".", "")
                     + "/" + mes.getYear();
 
             Long novosNoMes = jdbcTemplate.queryForObject("""

@@ -44,7 +44,6 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
                                          @Param("lng") double lng,
                                          @Param("raioKm") double raioKm);
 
-    // Autocomplete por nome — usado na barra de busca do mapa público.
     @Query(value = """
             SELECT * FROM estabelecimentos e
             WHERE e.ativo = true
@@ -54,4 +53,27 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
             LIMIT 8
             """, nativeQuery = true)
     List<Estabelecimento> buscarPorNome(@Param("termo") String termo);
+
+    // ── Admin master: listagem com filtros combináveis ──────────────────
+    // Todos os parâmetros são opcionais (null = "não filtrar por isso").
+    // status é calculado dinamicamente a partir de plano_ativo/trial_ativo,
+    // não é uma coluna própria — por isso a lógica em CASE dentro do WHERE.
+    @Query(value = """
+            SELECT * FROM estabelecimentos e
+            WHERE (:busca IS NULL OR :busca = '' OR LOWER(e.nome) LIKE LOWER(CONCAT('%', :busca, '%')))
+              AND (:plano IS NULL OR :plano = '' OR e.plano = :plano)
+              AND (:cidade IS NULL OR :cidade = '' OR LOWER(e.cidade) LIKE LOWER(CONCAT('%', :cidade, '%')))
+              AND (
+                    :status IS NULL OR :status = ''
+                    OR (:status = 'ATIVO' AND e.plano_ativo = true AND e.plano_valido_ate >= CURRENT_DATE)
+                    OR (:status = 'TRIAL' AND e.trial_ativo = true AND e.trial_fim >= CURRENT_DATE)
+                    OR (:status = 'INATIVO' AND NOT (e.plano_ativo = true AND e.plano_valido_ate >= CURRENT_DATE)
+                                              AND NOT (e.trial_ativo = true AND e.trial_fim >= CURRENT_DATE))
+                  )
+            ORDER BY e.criado_em DESC
+            """, nativeQuery = true)
+    List<Estabelecimento> buscarComFiltrosAdmin(@Param("busca") String busca,
+                                                @Param("plano") String plano,
+                                                @Param("cidade") String cidade,
+                                                @Param("status") String status);
 }
