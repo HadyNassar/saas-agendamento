@@ -23,6 +23,7 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
     @Query(value = """
             SELECT * FROM estabelecimentos e
             WHERE e.ativo = true
+              AND e.visivel_no_mapa = true
               AND e.latitude IS NOT NULL
               AND e.longitude IS NOT NULL
               AND (

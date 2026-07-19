@@ -56,6 +56,11 @@ public class Estabelecimento {
 
     @Column(precision = 10, scale = 7)
     private BigDecimal longitude;
+
+    // Permite ocultar do mapa público sem desativar a conta inteira.
+    // Controlado pelo admin master via Gestão do Mapa.
+    @Column(name = "visivel_no_mapa")
+    private boolean visivelNoMapa = true;
     // ─────────────────────────────────────────────────────────────────────────
 
     @CreationTimestamp
@@ -198,6 +203,7 @@ public class Estabelecimento {
     public String getCep()                     { return cep; }
     public BigDecimal getLatitude()            { return latitude; }
     public BigDecimal getLongitude()           { return longitude; }
+    public boolean isVisivelNoMapa()           { return visivelNoMapa; }
     public LocalDateTime getCriadoEm()         { return criadoEm; }
     public boolean isAtivo()                   { return ativo; }
     public String getEvolutionInstanceName()   { return evolutionInstanceName; }
@@ -241,6 +247,7 @@ public class Estabelecimento {
     public void setCep(String cep)                                     { this.cep = cep; }
     public void setLatitude(BigDecimal latitude)                       { this.latitude = latitude; }
     public void setLongitude(BigDecimal longitude)                     { this.longitude = longitude; }
+    public void setVisivelNoMapa(boolean visivelNoMapa)               { this.visivelNoMapa = visivelNoMapa; }
     public void setCriadoEm(LocalDateTime criadoEm)                   { this.criadoEm = criadoEm; }
     public void setAtivo(boolean ativo)                                { this.ativo = ativo; }
     public void setEvolutionInstanceName(String n)                     { this.evolutionInstanceName = n; }
