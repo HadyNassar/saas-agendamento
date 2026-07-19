@@ -12,7 +12,6 @@ import java.util.Optional;
 @Repository
 public interface CodigoVerificacao2FARepository extends JpaRepository<CodigoVerificacao2FA, Long> {
 
-    // Busca o código válido mais recente para conferência no login.
     @Query("""
             SELECT c FROM CodigoVerificacao2FA c
             WHERE c.usuarioId = :usuarioId

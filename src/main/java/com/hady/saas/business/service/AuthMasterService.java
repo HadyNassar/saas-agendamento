@@ -1,9 +1,7 @@
 package com.hady.saas.business.service;
 
 import com.hady.saas.domain.enums.Role;
-import com.hady.saas.domain.usuario.CodigoVerificacao2FA;
 import com.hady.saas.domain.usuario.Usuario;
-import com.hady.saas.infrastructure.repository.CodigoVerificacao2FARepository;
 import com.hady.saas.infrastructure.repository.UsuarioRepository;
 import com.hady.saas.infrastructure.security.JwtUtil;
 import org.springframework.security.authentication.AuthenticationManager;
