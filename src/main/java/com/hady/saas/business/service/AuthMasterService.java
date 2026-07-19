@@ -1,7 +1,9 @@
 package com.hady.saas.business.service;
 
 import com.hady.saas.domain.enums.Role;
+import com.hady.saas.domain.usuario.CodigoVerificacao2FA;
 import com.hady.saas.domain.usuario.Usuario;
+import com.hady.saas.infrastructure.repository.CodigoVerificacao2FARepository;
 import com.hady.saas.infrastructure.repository.UsuarioRepository;
 import com.hady.saas.infrastructure.security.JwtUtil;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -36,9 +38,6 @@ public class AuthMasterService {
         this.jwtUtil = jwtUtil;
     }
 
-    // Passo 1 — valida email/senha e, se corretos, envia o código 2FA.
-    // Retorna o ID do usuário (necessário no passo 2 pra localizar o código
-    // certo — não usamos email de novo pra evitar reenumeração de contas).
     @Transactional
     public Long iniciarLogin(String email, String senha) {
         authenticationManager.authenticate(
@@ -63,7 +62,6 @@ public class AuthMasterService {
         return usuario.getId();
     }
 
-    // Passo 2 — confirma o código e emite o JWT definitivo do admin master.
     @Transactional
     public String confirmarCodigo(Long usuarioId, String codigo) {
         CodigoVerificacao2FA registro = codigoRepository
@@ -80,7 +78,7 @@ public class AuthMasterService {
     }
 
     private String gerarCodigoNumerico() {
-        int numero = 100000 + random.nextInt(900000); // sempre 6 dígitos, 100000–999999
+        int numero = 100000 + random.nextInt(900000);
         return String.valueOf(numero);
     }
 }
