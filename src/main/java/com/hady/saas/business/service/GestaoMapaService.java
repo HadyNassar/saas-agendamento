@@ -62,12 +62,28 @@ public class GestaoMapaService {
     // ── Lista todos os leads capturados (mais recentes primeiro) ────────
     @Transactional(readOnly = true)
     public List<LeadMapaDTO> listarLeads(String googlePlaceId) {
-        String sql = """
-                SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora
-                FROM mapa_interesses
-                WHERE (? IS NULL OR google_place_id = ?)
-                ORDER BY data_hora DESC
-                """;
+        String sql;
+        Object[] params;
+
+        // Monta a query condicionalmente em vez de usar "? IS NULL OR ..." —
+        // esse padrão causa erro de inferência de tipo no driver JDBC do
+        // Postgres quando o parâmetro é null (ele não sabe se é text, uuid, etc).
+        if (googlePlaceId == null || googlePlaceId.isBlank()) {
+            sql = """
+                    SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora
+                    FROM mapa_interesses
+                    ORDER BY data_hora DESC
+                    """;
+            params = new Object[]{};
+        } else {
+            sql = """
+                    SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora
+                    FROM mapa_interesses
+                    WHERE google_place_id = ?
+                    ORDER BY data_hora DESC
+                    """;
+            params = new Object[]{googlePlaceId};
+        }
 
         return jdbcTemplate.query(sql, (rs, rowNum) -> new LeadMapaDTO(
                 rs.getLong("id"),
@@ -76,7 +92,7 @@ public class GestaoMapaService {
                 rs.getString("google_place_id"),
                 rs.getString("nome_salao_externo"),
                 toLocalDateTime(rs.getTimestamp("data_hora"))
-        ), googlePlaceId, googlePlaceId);
+        ), params);
     }
 
     // ── Leads agrupados por salão — para priorizar abordagem comercial ──
