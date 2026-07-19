@@ -90,9 +90,6 @@ public class SecurityConfig {
                         .requestMatchers("/painel/mercadopago/callback").permitAll()
                         .requestMatchers("/webhook/mercadopago").permitAll()
 
-                        // ── ⚠️ TEMPORÁRIO — remover após criar o admin master ───
-                        .requestMatchers("/setup/**").permitAll()
-
                         // ── Endpoint interno de geocodificação em massa (uso pontual,
                         // chamado manualmente por você via curl/Postman) ─────────
                         .requestMatchers("/admin/geocodificar-todos").permitAll()
