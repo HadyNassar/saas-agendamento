@@ -48,6 +48,25 @@ public class JwtUtil {
                 .compact();
     }
 
+    // Token de impersonação — usado pelo ADMIN_MASTER pra entrar como se fosse
+    // o dono/funcionário de um estabelecimento (suporte). É um token igual ao
+    // normal do usuário-alvo (mesmo subject/uid/eid, então o JwtAuthenticationFilter
+    // e o CustomUserDetailsService resolvem role e authorities normalmente, do banco),
+    // só que com duas claims extras que o FRONT lê pra mostrar o banner de aviso.
+    // Expiração curta (1h) por ser uma sessão pontual de suporte.
+    public String gerarTokenImpersonacao(String username, Long usuarioId, Long estabelecimentoId, String impersonadoPor) {
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("uid", usuarioId)
+                .claim("eid", estabelecimentoId)
+                .claim("impersonating", true)
+                .claim("impersonadoPor", impersonadoPor)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
     public String gerarTokenCliente(Long clienteId, String slug) {
         return Jwts.builder()
                 .setSubject("cliente:" + clienteId + ":" + slug)
