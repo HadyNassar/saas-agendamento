@@ -3,7 +3,6 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.EstabelecimentoMapaDTO;
 import com.hady.saas.application.dto.EstabelecimentoPerfilPublicoDTO;
 import com.hady.saas.application.dto.RegistrarInteresseDTO;
-import com.hady.saas.application.dto.SalaoExternoAdminDTO;
 import com.hady.saas.application.dto.SalaoExternoDTO;
 import com.hady.saas.business.service.GooglePlacesService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
@@ -16,9 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 public class MapaPublicoController {
@@ -62,7 +59,6 @@ public class MapaPublicoController {
                 .toList();
     }
 
-    // Autocomplete de busca por nome — usado na barra de busca do mapa.
     @GetMapping("/api/public/estabelecimentos/buscar")
     public List<EstabelecimentoMapaDTO> buscarPorNome(@RequestParam String nome) {
         if (nome == null || nome.isBlank() || nome.trim().length() < 2) {
@@ -124,8 +120,6 @@ public class MapaPublicoController {
                 e.getNome(),
                 e.getSlug(),
                 e.getTipo() != null ? e.getTipo().name() : null,
-                e.getTelefone(),
-                e.getWhatsappContato(),
                 e.getInstagram(),
                 e.getFacebook(),
                 e.getFotoPerfil(),
@@ -146,25 +140,8 @@ public class MapaPublicoController {
         return dto;
     }
 
-    @GetMapping("/admin/mapa/estabelecimentos-externos")
-    public List<SalaoExternoAdminDTO> buscarExternosAdmin(
-            @RequestParam double lat,
-            @RequestParam double lng,
-            @RequestParam(defaultValue = "10") double raio) {
-
-        return filtrarNaoCadastrados(lat, lng, raio);
-    }
-
-    @GetMapping("/admin/mapa/estabelecimentos-externos/{googlePlaceId}/telefone")
-    public Map<String, String> buscarTelefoneExterno(@PathVariable String googlePlaceId) {
-        String telefone = googlePlacesService.buscarTelefone(googlePlaceId);
-        Map<String, String> resposta = new HashMap<>();
-        resposta.put("telefone", telefone);
-        return resposta;
-    }
-
-    private List<SalaoExternoAdminDTO> filtrarNaoCadastrados(double lat, double lng, double raio) {
-        List<SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
+    private List<com.hady.saas.application.dto.SalaoExternoAdminDTO> filtrarNaoCadastrados(double lat, double lng, double raio) {
+        List<com.hady.saas.application.dto.SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
 
         List<Estabelecimento> jaCadastrados = estabelecimentoRepository.buscarProximos(lat, lng, raio);
         List<String> nomesJaCadastrados = jaCadastrados.stream()
@@ -183,8 +160,8 @@ public class MapaPublicoController {
                     "INSERT INTO mapa_visualizacoes (salao_id, origem) VALUES (?, ?)",
                     estabelecimentoId, origem
             );
-        } catch (Exception e) {
-            System.err.println("Falha ao registrar visualização: " + e.getMessage());
+        } catch (Exception ex) {
+            System.err.println("Falha ao registrar visualização: " + ex.getMessage());
         }
     }
 }

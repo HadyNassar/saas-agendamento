@@ -1,8 +1,10 @@
 package com.hady.saas.business.service;
 
+import com.hady.saas.application.dto.EstabelecimentoMapaAdminDTO;
 import com.hady.saas.application.dto.LeadAgrupadoDTO;
 import com.hady.saas.application.dto.LeadMapaDTO;
 import com.hady.saas.application.dto.MapaMetricaEstabelecimentoDTO;
+import com.hady.saas.application.dto.SalaoExternoAdminDTO;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,11 +24,14 @@ public class GestaoMapaService {
 
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final GooglePlacesService googlePlacesService;
 
     public GestaoMapaService(EstabelecimentoRepository estabelecimentoRepository,
-                             JdbcTemplate jdbcTemplate) {
+                             JdbcTemplate jdbcTemplate,
+                             GooglePlacesService googlePlacesService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.googlePlacesService = googlePlacesService;
     }
 
     // ── Métricas por estabelecimento cadastrado ──────────────────────────
@@ -59,15 +64,59 @@ public class GestaoMapaService {
         estabelecimentoRepository.save(e);
     }
 
+    // ── NOVO: mapa completo pro admin master — TODOS os estabelecimentos
+    // cadastrados próximos (mesmo os ocultos do mapa público), já com
+    // telefone/WhatsApp incluído. Ferramenta de prospecção/gestão. ────────
+    @Transactional(readOnly = true)
+    public List<EstabelecimentoMapaAdminDTO> listarEstabelecimentosParaMapa(double lat, double lng, double raio) {
+        return estabelecimentoRepository.buscarProximos(lat, lng, raio).stream()
+                .map(e -> new EstabelecimentoMapaAdminDTO(
+                        e.getId(),
+                        e.getNome(),
+                        e.getSlug(),
+                        e.getTipo() != null ? e.getTipo().name() : null,
+                        e.getBairro(),
+                        e.getCidade(),
+                        e.getLatitude(),
+                        e.getLongitude(),
+                        e.getFotoPerfil(),
+                        e.temAcesso(),
+                        e.isVisivelNoMapa(),
+                        e.getTelefone(),
+                        e.getWhatsappContato()
+                ))
+                .toList();
+    }
+
+    // ── NOVO (movido do MapaPublicoController): salões do Google ainda não
+    // cadastrados no sistema, com avaliação — exclusivo admin master ─────
+    @Transactional(readOnly = true)
+    public List<SalaoExternoAdminDTO> listarExternosParaMapa(double lat, double lng, double raio) {
+        List<SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
+
+        List<Estabelecimento> jaCadastrados = estabelecimentoRepository.buscarProximos(lat, lng, raio);
+        List<String> nomesJaCadastrados = jaCadastrados.stream()
+                .map(e -> e.getNome().trim().toLowerCase())
+                .toList();
+
+        return todosDoGoogle.stream()
+                .filter(externo -> !nomesJaCadastrados.contains(externo.getNome().trim().toLowerCase()))
+                .toList();
+    }
+
+    // ── NOVO (movido do MapaPublicoController): telefone sob demanda de
+    // um salão externo, via Google Place Details — exclusivo admin master
+    @Transactional(readOnly = true)
+    public String buscarTelefoneExterno(String googlePlaceId) {
+        return googlePlacesService.buscarTelefone(googlePlaceId);
+    }
+
     // ── Lista todos os leads capturados (mais recentes primeiro) ────────
     @Transactional(readOnly = true)
     public List<LeadMapaDTO> listarLeads(String googlePlaceId) {
         String sql;
         Object[] params;
 
-        // Monta a query condicionalmente em vez de usar "? IS NULL OR ..." —
-        // esse padrão causa erro de inferência de tipo no driver JDBC do
-        // Postgres quando o parâmetro é null (ele não sabe se é text, uuid, etc).
         if (googlePlaceId == null || googlePlaceId.isBlank()) {
             sql = """
                     SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora
@@ -119,7 +168,6 @@ public class GestaoMapaService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        // BOM UTF-8 no início — garante acentuação correta ao abrir no Excel
         try {
             out.write(0xEF); out.write(0xBB); out.write(0xBF);
         } catch (Exception ignored) {}
@@ -163,7 +211,6 @@ public class GestaoMapaService {
 
     private String escapCsv(String valor) {
         if (valor == null) return "";
-        // Escapa ponto-e-vírgula e quebras de linha que quebrariam o CSV
         return valor.replace(";", ",").replace("\n", " ").replace("\r", " ");
     }
 }

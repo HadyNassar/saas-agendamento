@@ -5,15 +5,14 @@ import java.util.List;
 
 // Perfil público completo de UM estabelecimento — usado na página
 // encontre.oagendara.com.br/salao/{slug}
-// Não expõe dados internos (clientes, financeiro, fichas de anamnese).
+// Não expõe dados internos (clientes, financeiro, fichas de anamnese,
+// telefone/WhatsApp — cliente final agenda pelo sistema, não liga direto).
 public class EstabelecimentoPerfilPublicoDTO {
 
     private Long id;
     private String nome;
     private String slug;
     private String tipo;
-    private String telefone;
-    private String whatsappContato;
     private String instagram;
     private String facebook;
     private String fotoPerfil;
@@ -29,12 +28,11 @@ public class EstabelecimentoPerfilPublicoDTO {
     private List<String> comodidades;
     private List<String> formasPagamento;
 
-    private boolean aceitaAgendamentoOnline; // true = tem plano ativo/trial
+    private boolean aceitaAgendamentoOnline;
 
     public EstabelecimentoPerfilPublicoDTO() {}
 
     public EstabelecimentoPerfilPublicoDTO(Long id, String nome, String slug, String tipo,
-                                           String telefone, String whatsappContato,
                                            String instagram, String facebook, String fotoPerfil,
                                            String logradouro, String numero, String bairro,
                                            String cidade, String estado,
@@ -45,8 +43,6 @@ public class EstabelecimentoPerfilPublicoDTO {
         this.nome = nome;
         this.slug = slug;
         this.tipo = tipo;
-        this.telefone = telefone;
-        this.whatsappContato = whatsappContato;
         this.instagram = instagram;
         this.facebook = facebook;
         this.fotoPerfil = fotoPerfil;
@@ -73,12 +69,6 @@ public class EstabelecimentoPerfilPublicoDTO {
 
     public String getTipo()                      { return tipo; }
     public void setTipo(String tipo)             { this.tipo = tipo; }
-
-    public String getTelefone()                  { return telefone; }
-    public void setTelefone(String telefone)     { this.telefone = telefone; }
-
-    public String getWhatsappContato()                     { return whatsappContato; }
-    public void setWhatsappContato(String whatsappContato) { this.whatsappContato = whatsappContato; }
 
     public String getInstagram()                 { return instagram; }
     public void setInstagram(String instagram)   { this.instagram = instagram; }
