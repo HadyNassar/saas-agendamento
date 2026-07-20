@@ -3,6 +3,7 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.EstabelecimentoMapaDTO;
 import com.hady.saas.application.dto.EstabelecimentoPerfilPublicoDTO;
 import com.hady.saas.application.dto.RegistrarInteresseDTO;
+import com.hady.saas.application.dto.SalaoExternoAdminDTO;
 import com.hady.saas.application.dto.SalaoExternoDTO;
 import com.hady.saas.business.service.GooglePlacesService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
@@ -120,6 +121,8 @@ public class MapaPublicoController {
                 e.getNome(),
                 e.getSlug(),
                 e.getTipo() != null ? e.getTipo().name() : null,
+                e.getTelefone(),
+                e.getWhatsappContato(),
                 e.getInstagram(),
                 e.getFacebook(),
                 e.getFotoPerfil(),
@@ -140,8 +143,8 @@ public class MapaPublicoController {
         return dto;
     }
 
-    private List<com.hady.saas.application.dto.SalaoExternoAdminDTO> filtrarNaoCadastrados(double lat, double lng, double raio) {
-        List<com.hady.saas.application.dto.SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
+    private List<SalaoExternoAdminDTO> filtrarNaoCadastrados(double lat, double lng, double raio) {
+        List<SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
 
         List<Estabelecimento> jaCadastrados = estabelecimentoRepository.buscarProximos(lat, lng, raio);
         List<String> nomesJaCadastrados = jaCadastrados.stream()

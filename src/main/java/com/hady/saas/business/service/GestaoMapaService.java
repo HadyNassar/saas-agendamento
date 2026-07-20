@@ -64,7 +64,7 @@ public class GestaoMapaService {
         estabelecimentoRepository.save(e);
     }
 
-    // ── NOVO: mapa completo pro admin master — TODOS os estabelecimentos
+    // ── Mapa completo pro admin master — TODOS os estabelecimentos
     // cadastrados próximos (mesmo os ocultos do mapa público), já com
     // telefone/WhatsApp incluído. Ferramenta de prospecção/gestão. ────────
     @Transactional(readOnly = true)
@@ -88,8 +88,8 @@ public class GestaoMapaService {
                 .toList();
     }
 
-    // ── NOVO (movido do MapaPublicoController): salões do Google ainda não
-    // cadastrados no sistema, com avaliação — exclusivo admin master ─────
+    // ── Salões do Google ainda não cadastrados no sistema, com avaliação —
+    // exclusivo admin master ──────────────────────────────────────────────
     @Transactional(readOnly = true)
     public List<SalaoExternoAdminDTO> listarExternosParaMapa(double lat, double lng, double raio) {
         List<SalaoExternoAdminDTO> todosDoGoogle = googlePlacesService.buscarSaloesProximos(lat, lng, raio);
@@ -104,8 +104,7 @@ public class GestaoMapaService {
                 .toList();
     }
 
-    // ── NOVO (movido do MapaPublicoController): telefone sob demanda de
-    // um salão externo, via Google Place Details — exclusivo admin master
+    // ── Telefone sob demanda de um salão externo, via Google Place Details
     @Transactional(readOnly = true)
     public String buscarTelefoneExterno(String googlePlaceId) {
         return googlePlacesService.buscarTelefone(googlePlaceId);
@@ -119,14 +118,14 @@ public class GestaoMapaService {
 
         if (googlePlaceId == null || googlePlaceId.isBlank()) {
             sql = """
-                    SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora
+                    SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora, visualizado
                     FROM mapa_interesses
                     ORDER BY data_hora DESC
                     """;
             params = new Object[]{};
         } else {
             sql = """
-                    SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora
+                    SELECT id, nome_cliente, contato, google_place_id, nome_salao_externo, data_hora, visualizado
                     FROM mapa_interesses
                     WHERE google_place_id = ?
                     ORDER BY data_hora DESC
@@ -140,8 +139,24 @@ public class GestaoMapaService {
                 rs.getString("contato"),
                 rs.getString("google_place_id"),
                 rs.getString("nome_salao_externo"),
-                toLocalDateTime(rs.getTimestamp("data_hora"))
+                toLocalDateTime(rs.getTimestamp("data_hora")),
+                rs.getBoolean("visualizado")
         ), params);
+    }
+
+    // ── Conta quantos leads ainda não foram vistos — badge no painel ────
+    @Transactional(readOnly = true)
+    public long contarLeadsNaoVisualizados() {
+        Long resultado = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM mapa_interesses WHERE visualizado = FALSE", Long.class
+        );
+        return resultado != null ? resultado : 0L;
+    }
+
+    // ── Marca um lead como visualizado ───────────────────────────────────
+    @Transactional
+    public void marcarLeadComoVisualizado(Long leadId) {
+        jdbcTemplate.update("UPDATE mapa_interesses SET visualizado = TRUE WHERE id = ?", leadId);
     }
 
     // ── Leads agrupados por salão — para priorizar abordagem comercial ──

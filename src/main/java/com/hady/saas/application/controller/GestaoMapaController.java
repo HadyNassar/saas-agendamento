@@ -29,7 +29,7 @@ public class GestaoMapaController {
         this.gestaoMapaService = gestaoMapaService;
     }
 
-    // NOVO — pins verdes pro painel: todos os estabelecimentos cadastrados
+    // Pins verdes pro painel: todos os estabelecimentos cadastrados
     // próximos, incluindo os ocultos do mapa público, já com telefone/WhatsApp.
     @GetMapping("/estabelecimentos")
     public List<EstabelecimentoMapaAdminDTO> listarEstabelecimentos(
@@ -39,9 +39,8 @@ public class GestaoMapaController {
         return gestaoMapaService.listarEstabelecimentosParaMapa(lat, lng, raio);
     }
 
-    // MOVIDO do MapaPublicoController — estava em /admin/mapa/** (protegido
-    // só por "estar logado", não por role). Agora fica corretamente sob
-    // /admin-master/**, exclusivo admin master.
+    // Pins cinza pro painel: salões do Google ainda não cadastrados,
+    // com avaliação — exclusivo admin master.
     @GetMapping("/estabelecimentos-externos")
     public List<SalaoExternoAdminDTO> listarExternos(
             @RequestParam double lat,
@@ -50,7 +49,7 @@ public class GestaoMapaController {
         return gestaoMapaService.listarExternosParaMapa(lat, lng, raio);
     }
 
-    // MOVIDO do MapaPublicoController — mesmo motivo acima.
+    // Telefone sob demanda de um salão externo (Google Place Details).
     @GetMapping("/estabelecimentos-externos/{googlePlaceId}/telefone")
     public Map<String, String> buscarTelefoneExterno(@PathVariable String googlePlaceId) {
         String telefone = gestaoMapaService.buscarTelefoneExterno(googlePlaceId);
@@ -75,9 +74,23 @@ public class GestaoMapaController {
         return ResponseEntity.ok(visivel ? "Estabelecimento visível no mapa." : "Estabelecimento oculto do mapa.");
     }
 
+    // Lista todos os leads, ou filtra por salão específico via ?googlePlaceId=
     @GetMapping("/leads")
     public List<LeadMapaDTO> listarLeads(@RequestParam(required = false) String googlePlaceId) {
         return gestaoMapaService.listarLeads(googlePlaceId);
+    }
+
+    // Badge de notificação no painel: quantos leads ainda não foram vistos.
+    @GetMapping("/leads/nao-visualizados")
+    public Map<String, Long> contarLeadsNaoVisualizados() {
+        return Map.of("total", gestaoMapaService.contarLeadsNaoVisualizados());
+    }
+
+    // Marca um lead específico como visualizado.
+    @PatchMapping("/leads/{id}/visualizado")
+    public ResponseEntity<String> marcarLeadComoVisualizado(@PathVariable Long id) {
+        gestaoMapaService.marcarLeadComoVisualizado(id);
+        return ResponseEntity.ok("Lead marcado como visualizado.");
     }
 
     @GetMapping("/leads/agrupados")

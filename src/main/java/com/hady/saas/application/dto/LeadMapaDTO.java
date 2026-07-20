@@ -13,17 +13,19 @@ public class LeadMapaDTO {
     private String googlePlaceId;
     private String nomeSalaoExterno;
     private LocalDateTime dataHora;
+    private boolean visualizado;
 
     public LeadMapaDTO() {}
 
     public LeadMapaDTO(Long id, String nomeCliente, String contato, String googlePlaceId,
-                       String nomeSalaoExterno, LocalDateTime dataHora) {
+                       String nomeSalaoExterno, LocalDateTime dataHora, boolean visualizado) {
         this.id = id;
         this.nomeCliente = nomeCliente;
         this.contato = contato;
         this.googlePlaceId = googlePlaceId;
         this.nomeSalaoExterno = nomeSalaoExterno;
         this.dataHora = dataHora;
+        this.visualizado = visualizado;
     }
 
     public Long getId()                              { return id; }
@@ -43,4 +45,7 @@ public class LeadMapaDTO {
 
     public LocalDateTime getDataHora()                { return dataHora; }
     public void setDataHora(LocalDateTime dataHora)   { this.dataHora = dataHora; }
+
+    public boolean isVisualizado()                    { return visualizado; }
+    public void setVisualizado(boolean visualizado)   { this.visualizado = visualizado; }
 }
