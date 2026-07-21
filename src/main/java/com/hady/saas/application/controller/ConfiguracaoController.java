@@ -43,6 +43,8 @@ public class ConfiguracaoController {
         EstabelecimentoResponseDTO dto = new EstabelecimentoResponseDTO(
                 est.getId(), est.getNome(), est.getSlug(),
                 est.getTelefone(), est.getEndereco(),
+                est.getCep(), est.getLogradouro(), est.getNumero(),
+                est.getComplemento(), est.getBairro(), est.getCidade(), est.getEstado(),
                 est.getMesesAntecipacao(), est.isWhatsappConectado(),
                 est.getPlano() != null ? est.getPlanoEfetivo().name() : null,
                 est.isMpConectado(),
@@ -60,7 +62,6 @@ public class ConfiguracaoController {
         );
         return ResponseEntity.ok(dto);
     }
-
     // Aba "Estabelecimento" — atualiza nome, telefone, endereço e logo.
     // Se o front enviar CEP preenchido, usa o fluxo de endereço estruturado
     // (regeocodifica com base em logradouro/bairro/cidade/estado, mais preciso).

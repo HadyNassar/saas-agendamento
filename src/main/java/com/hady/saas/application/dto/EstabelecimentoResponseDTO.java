@@ -10,6 +10,18 @@ public class EstabelecimentoResponseDTO {
     private String slug;
     private String telefone;
     private String endereco;
+
+    // ── Endereço estruturado — precisa vir aqui pra tela de Configurações
+    // conseguir pré-preencher CEP/logradouro/número/bairro/cidade/UF ao
+    // carregar (antes só existia o campo de texto livre 'endereco'). ──────
+    private String cep;
+    private String logradouro;
+    private String numero;
+    private String complemento;
+    private String bairro;
+    private String cidade;
+    private String estado;
+
     private Integer mesesAntecipacao;
     private boolean whatsappConectado;
     private String plano;
@@ -21,7 +33,7 @@ public class EstabelecimentoResponseDTO {
     private String tipoSinal;
     private BigDecimal valorSinal;
 
-    // ─── Campos de Detalhes & Redes (faltavam aqui — causa do "falso salvo") ──
+    // ─── Campos de Detalhes & Redes ──
     private String fotoPerfil;
     private String instagram;
     private String whatsappContato;
@@ -34,6 +46,8 @@ public class EstabelecimentoResponseDTO {
 
     public EstabelecimentoResponseDTO(Long id, String nome, String slug,
                                       String telefone, String endereco,
+                                      String cep, String logradouro, String numero,
+                                      String complemento, String bairro, String cidade, String estado,
                                       Integer mesesAntecipacao, boolean whatsappConectado,
                                       String plano,
                                       boolean mpConectado, boolean aceitaPagamento,
@@ -46,6 +60,13 @@ public class EstabelecimentoResponseDTO {
         this.slug = slug;
         this.telefone = telefone;
         this.endereco = endereco;
+        this.cep = cep;
+        this.logradouro = logradouro;
+        this.numero = numero;
+        this.complemento = complemento;
+        this.bairro = bairro;
+        this.cidade = cidade;
+        this.estado = estado;
         this.mesesAntecipacao = mesesAntecipacao;
         this.whatsappConectado = whatsappConectado;
         this.plano = plano;
@@ -77,6 +98,27 @@ public class EstabelecimentoResponseDTO {
 
     public String getEndereco()            { return endereco; }
     public void setEndereco(String e)      { this.endereco = e; }
+
+    public String getCep()                 { return cep; }
+    public void setCep(String cep)         { this.cep = cep; }
+
+    public String getLogradouro()                  { return logradouro; }
+    public void setLogradouro(String logradouro)   { this.logradouro = logradouro; }
+
+    public String getNumero()                      { return numero; }
+    public void setNumero(String numero)           { this.numero = numero; }
+
+    public String getComplemento()                 { return complemento; }
+    public void setComplemento(String complemento) { this.complemento = complemento; }
+
+    public String getBairro()                      { return bairro; }
+    public void setBairro(String bairro)           { this.bairro = bairro; }
+
+    public String getCidade()                      { return cidade; }
+    public void setCidade(String cidade)           { this.cidade = cidade; }
+
+    public String getEstado()                      { return estado; }
+    public void setEstado(String estado)           { this.estado = estado; }
 
     public Integer getMesesAntecipacao()           { return mesesAntecipacao; }
     public void setMesesAntecipacao(Integer m)     { this.mesesAntecipacao = m; }
