@@ -104,8 +104,12 @@ public class GestaoMapaService {
                 .toList();
     }
 
-    // ── Telefone sob demanda de um salão externo, via Google Place Details
-    @Transactional(readOnly = true)
+    // ── Telefone sob demanda de um salão externo, via Google Place Details.
+    // NÃO pode ser readOnly: esse fluxo grava o resultado na tabela de
+    // cache (places_cache) — com readOnly=true o Postgres rejeita o
+    // INSERT/UPDATE do cache com "cannot execute INSERT in a read-only
+    // transaction", fazendo o telefone nunca ser salvo/retornado certo.
+    @Transactional
     public String buscarTelefoneExterno(String googlePlaceId) {
         return googlePlacesService.buscarTelefone(googlePlaceId);
     }
