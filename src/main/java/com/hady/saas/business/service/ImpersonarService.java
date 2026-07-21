@@ -22,7 +22,7 @@ public class ImpersonarService {
         this.notasAuditoriaService = notasAuditoriaService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ImpersonarResponseDTO impersonar(Long estabelecimentoId, Long usuarioId, String adminEmail) {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
