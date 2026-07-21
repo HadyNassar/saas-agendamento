@@ -69,6 +69,31 @@ public class AgendamentoController {
         return ResponseEntity.ok(agendamentos.stream().map(AgendamentoResponseDTO::de).toList());
     }
 
+    // ─── Listagem por período (visão semanal na Agenda) ──────────────────────
+    @GetMapping("/semana")
+    public ResponseEntity<List<AgendamentoResponseDTO>> listarPorPeriodo(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
+            Authentication auth) {
+
+        Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
+        CustomUserDetails principal = (CustomUserDetails) auth.getPrincipal();
+        List<Agendamento> agendamentos;
+
+        boolean isFuncionarioPlatinum = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_PROFISSIONAL"));
+
+        if (isFuncionarioPlatinum) {
+            Profissional profissional = profissionalService.buscarPorUsuario(authUtil.getUsuarioId(auth));
+            agendamentos = agendamentoService.listarPorProfissionalEPeriodo(
+                    profissional.getId(), estabelecimentoId, dataInicio, dataFim);
+        } else {
+            agendamentos = agendamentoService.listarPorPeriodo(estabelecimentoId, dataInicio, dataFim);
+        }
+
+        return ResponseEntity.ok(agendamentos.stream().map(AgendamentoResponseDTO::de).toList());
+    }
+
     // ─── Disponibilidade de horários para agendamento pelo painel ────────────
     @GetMapping("/disponibilidade")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'PROFISSIONAL')")

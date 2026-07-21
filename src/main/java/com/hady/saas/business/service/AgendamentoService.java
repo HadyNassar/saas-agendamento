@@ -214,6 +214,24 @@ public class AgendamentoService {
                 profissionalId, inicio, fim);
     }
 
+    // ── Listagem por período (usado na visão semanal da Agenda) ─────────────
+    public List<Agendamento> listarPorPeriodo(Long estabelecimentoId, LocalDate dataInicio, LocalDate dataFim) {
+        LocalDateTime inicio = dataInicio.atStartOfDay();
+        LocalDateTime fim = dataFim.atTime(23, 59, 59);
+        return agendamentoRepository.findByEstabelecimentoIdAndDataHoraInicioBetween(
+                estabelecimentoId, inicio, fim);
+    }
+
+    public List<Agendamento> listarPorProfissionalEPeriodo(Long profissionalId, Long estabelecimentoId,
+                                                           LocalDate dataInicio, LocalDate dataFim) {
+        profissionalRepository.findByIdAndEstabelecimentoId(profissionalId, estabelecimentoId)
+                .orElseThrow(() -> new RuntimeException("Profissional não encontrado"));
+        LocalDateTime inicio = dataInicio.atStartOfDay();
+        LocalDateTime fim = dataFim.atTime(23, 59, 59);
+        return agendamentoRepository.findByProfissionalIdAndDataHoraInicioBetween(
+                profissionalId, inicio, fim);
+    }
+
     public List<LocalTime> gerarSlotsDisponiveis(Long profissionalId, Long estabelecimentoId,
                                                  LocalDate dia, int duracaoServico) {
 
