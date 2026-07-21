@@ -3,6 +3,7 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.EditarEstabelecimentoAdminDTO;
 import com.hady.saas.application.dto.EstabelecimentoAdminDTO;
 import com.hady.saas.application.dto.EstabelecimentoListaAdminDTO;
+import com.hady.saas.application.dto.UsuarioAdminDTO;
 import com.hady.saas.business.service.GestaoUsuariosService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,14 @@ public class GestaoUsuariosController {
     @GetMapping("/{id}")
     public EstabelecimentoAdminDTO buscarDetalhe(@PathVariable Long id) {
         return gestaoUsuariosService.buscarDetalhe(id);
+    }
+
+    // Lista os usuários vinculados a este estabelecimento — usado no
+    // seletor de "Impersonar conta" para evitar digitar um ID no escuro.
+    // GET /admin-master/estabelecimentos/{id}/usuarios
+    @GetMapping("/{id}/usuarios")
+    public List<UsuarioAdminDTO> listarUsuarios(@PathVariable Long id) {
+        return gestaoUsuariosService.listarUsuarios(id);
     }
 
     // Edição administrativa — qualquer campo, incluindo endereço completo.

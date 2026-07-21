@@ -6,6 +6,7 @@ import com.hady.saas.application.dto.EstabelecimentoListaAdminDTO;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.enums.TipoEstabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
+import com.hady.saas.infrastructure.repository.UsuarioRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,13 +20,16 @@ import java.util.List;
 public class GestaoUsuariosService {
 
     private final EstabelecimentoRepository estabelecimentoRepository;
+    private final UsuarioRepository usuarioRepository;
     private final GeocodingService geocodingService;
     private final JdbcTemplate jdbcTemplate;
 
     public GestaoUsuariosService(EstabelecimentoRepository estabelecimentoRepository,
+                                 UsuarioRepository usuarioRepository,
                                  GeocodingService geocodingService,
                                  JdbcTemplate jdbcTemplate) {
         this.estabelecimentoRepository = estabelecimentoRepository;
+        this.usuarioRepository = usuarioRepository;
         this.geocodingService = geocodingService;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -158,6 +162,25 @@ public class GestaoUsuariosService {
         }
 
         estabelecimentoRepository.save(e);
+    }
+
+    // ── Usuários do estabelecimento (para o seletor de impersonar) ────
+    @Transactional(readOnly = true)
+    public List<com.hady.saas.application.dto.UsuarioAdminDTO> listarUsuarios(Long estabelecimentoId) {
+        // Garante que o estabelecimento existe antes de listar, para
+        // devolver um erro claro em vez de uma lista vazia silenciosa.
+        if (!estabelecimentoRepository.existsById(estabelecimentoId)) {
+            throw new RuntimeException("Estabelecimento não encontrado");
+        }
+
+        return usuarioRepository.findByEstabelecimentoId(estabelecimentoId).stream()
+                .map(u -> new com.hady.saas.application.dto.UsuarioAdminDTO(
+                        u.getId(),
+                        u.getNome(),
+                        u.getEmail(),
+                        u.getRole() != null ? u.getRole().name() : null
+                ))
+                .toList();
     }
 
     // ── Ações administrativas rápidas ────────────────────────────────
