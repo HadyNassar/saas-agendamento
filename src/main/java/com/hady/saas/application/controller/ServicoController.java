@@ -33,12 +33,14 @@ public class ServicoController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
-    public ResponseEntity<String> criar(@Valid @RequestBody ServicoDTO dto, Authentication auth) {
+    public ResponseEntity<Servico> criar(@Valid @RequestBody ServicoDTO dto, Authentication auth) {
         Long estabelecimentoId = authUtil.getEstabelecimentoId(auth);
         Servico servico = montarServico(dto);
         // estabelecimento é resolvido no service via id
-        servicoService.criarComEstabelecimentoId(servico, dto, estabelecimentoId);
-        return ResponseEntity.ok("Serviço criado com sucesso!");
+        // Retorna o serviço criado (com id) para o front poder vincular
+        // profissionais logo em seguida, sem precisar recarregar a lista.
+        Servico salvo = servicoService.criarComEstabelecimentoId(servico, dto, estabelecimentoId);
+        return ResponseEntity.ok(salvo);
     }
 
     @PutMapping("/{id}")
