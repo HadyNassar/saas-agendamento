@@ -8,10 +8,18 @@ public enum TipoEstabelecimento {
     STUDIO_MANICURE("Studio de Manicure"),
     SPA("Spa"),
     STUDIO_SOBRANCELHA("Studio de Sobrancelha"),
+    STUDIO_TATUAGEM("Studio de Tatuagem"),
+    STUDIO_PIERCING("Studio de Piercing"),
+    MICROPIGMENTACAO("Micropigmentação"),
     // Saúde & Bem-estar
     MASSOTERAPIA("Massoterapia"),
     PODOLOGIA("Podologia"),
     NUTRICIONISTA("Nutricionista"),
+    FISIOTERAPIA("Fisioterapia"),
+    PSICOLOGIA("Psicologia & Terapia"),
+    ACUPUNTURA("Acupuntura"),
+    ODONTOLOGIA("Odontologia"),
+    TRICOLOGIA("Tricologia"),
     // Esporte & Fitness
     PERSONAL_TRAINER("Personal Trainer"),
     STUDIO_PILATES("Studio de Pilates"),
