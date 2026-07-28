@@ -48,7 +48,10 @@ public class WhatsAppController {
         Estabelecimento est = getEstab(auth);
         String instanceName = "agendara-" + est.getSlug();
         try {
-            if (est.getEvolutionInstanceName() == null) {
+            boolean precisaCriar = est.getEvolutionInstanceName() == null
+                    || !evolutionApiClient.instanciaExiste(instanceName);
+
+            if (precisaCriar) {
                 evolutionApiClient.criarInstancia(instanceName);
                 est.setEvolutionInstanceName(instanceName);
                 est.setWhatsappConectado(false);
@@ -67,6 +70,13 @@ public class WhatsAppController {
         Estabelecimento est = getEstab(auth);
         if (est.getEvolutionInstanceName() == null) {
             return ResponseEntity.badRequest().body(Map.of("erro", "Nenhuma instância iniciada"));
+        }
+        // Mesma proteção do /conectar: se a instância sumiu do lado da Evolution,
+        // avisamos claramente em vez de deixar o front tentar buscar QR em loop
+        // contra uma instância que não existe mais.
+        if (!evolutionApiClient.instanciaExiste(est.getEvolutionInstanceName())) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "erro", "Instância não encontrada na Evolution API. Use /conectar novamente para recriá-la."));
         }
         try {
             return ResponseEntity.ok(Map.of("qrcode", evolutionApiClient.buscarQrCode(est.getEvolutionInstanceName())));

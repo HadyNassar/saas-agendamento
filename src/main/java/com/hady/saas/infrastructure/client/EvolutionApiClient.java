@@ -57,6 +57,32 @@ public class EvolutionApiClient {
         throw new RuntimeException("QR Code não encontrado na resposta");
     }
 
+    /**
+     * Verifica se a instância REALMENTE existe no servidor Evolution (diferente de
+     * verificarConexao, que só diz se está com sessão "open"). Necessário porque a
+     * instância pode ter sido perdida no lado do Evolution (reinício de container,
+     * sessão expirada e removida, etc.) mesmo que nosso banco ainda tenha o nome
+     * salvo em evolutionInstanceName — nesse caso connectionState pode até responder
+     * sem erro (ex.: state "close"), mas gerar QR code vai falhar/ficar em loop
+     * porque não há instância de fato para conectar.
+     */
+    public boolean instanciaExiste(String instanceName) {
+        try {
+            String url = baseUrl + "/instance/fetchInstances?instanceName=" + instanceName;
+            ResponseEntity<Object> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headers()), Object.class
+            );
+            Object body = response.getBody();
+            if (body instanceof java.util.List<?> lista) {
+                return !lista.isEmpty();
+            }
+            return false;
+        } catch (Exception e) {
+            log.warn("[EvolutionAPI] Falha ao verificar existencia da instancia '{}': {}", instanceName, e.getMessage());
+            return false;
+        }
+    }
+
     public boolean verificarConexao(String instanceName) {
         try {
             String url = baseUrl + "/instance/connectionState/" + instanceName;
