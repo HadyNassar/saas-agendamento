@@ -65,22 +65,53 @@ public class EvolutionApiClient {
      * salvo em evolutionInstanceName — nesse caso connectionState pode até responder
      * sem erro (ex.: state "close"), mas gerar QR code vai falhar/ficar em loop
      * porque não há instância de fato para conectar.
+     *
+     * IMPORTANTE: não usar o filtro via query param (?instanceName=), pois nessa
+     * imagem/versão a resposta muda de formato conforme o resultado — quando a
+     * instância NÃO existe, retorna um objeto de erro 404 em vez de lista vazia,
+     * e quando existe pode retornar um objeto único em vez de lista. Por isso
+     * usamos sempre a listagem completa (que consistentemente retorna um array,
+     * mesmo vazio) e filtramos pelo nome no lado do backend.
      */
     public boolean instanciaExiste(String instanceName) {
         try {
-            String url = baseUrl + "/instance/fetchInstances?instanceName=" + instanceName;
+            String url = baseUrl + "/instance/fetchInstances";
             ResponseEntity<Object> response = restTemplate.exchange(
                     url, HttpMethod.GET, new HttpEntity<>(headers()), Object.class
             );
             Object body = response.getBody();
-            if (body instanceof java.util.List<?> lista) {
-                return !lista.isEmpty();
+            if (!(body instanceof java.util.List<?> lista)) {
+                return false;
+            }
+            for (Object item : lista) {
+                String nomeEncontrado = extrairNomeInstancia(item);
+                if (instanceName.equals(nomeEncontrado)) {
+                    return true;
+                }
             }
             return false;
         } catch (Exception e) {
             log.warn("[EvolutionAPI] Falha ao verificar existencia da instancia '{}': {}", instanceName, e.getMessage());
             return false;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extrairNomeInstancia(Object item) {
+        if (!(item instanceof Map)) return null;
+        Map<String, Object> map = (Map<String, Object>) item;
+
+        // Algumas versões retornam o nome direto no objeto, outras aninhado em "instance".
+        if (map.get("instanceName") instanceof String nome) return nome;
+        if (map.get("name") instanceof String nome) return nome;
+
+        Object instanceObj = map.get("instance");
+        if (instanceObj instanceof Map) {
+            Map<String, Object> instanceMap = (Map<String, Object>) instanceObj;
+            if (instanceMap.get("instanceName") instanceof String nome) return nome;
+            if (instanceMap.get("name") instanceof String nome) return nome;
+        }
+        return null;
     }
 
     public boolean verificarConexao(String instanceName) {
