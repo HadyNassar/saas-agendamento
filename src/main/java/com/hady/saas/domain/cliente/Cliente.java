@@ -1,6 +1,7 @@
 package com.hady.saas.domain.cliente;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.hady.saas.domain.enums.EstagioCliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import jakarta.persistence.*;
 
@@ -33,6 +34,20 @@ public class Cliente {
     @Column(name = "ultimo_lembrete_retorno")
     private LocalDateTime ultimoLembreteRetorno;
 
+    // Migration V23 — snapshot persistido do EstagioCliente calculado pelo
+    // ClienteSegmentacaoService. O cálculo sob demanda (calcular()) continua
+    // sendo a fonte da verdade para leituras pontuais; estas duas colunas
+    // existem só para permitir consultas em massa (ex: "todos os VIP") sem
+    // recalcular cliente por cliente, e para os itens 10/11 saberem QUANDO a
+    // mudança aconteceu (ver ClienteEstagioHistorico). Pode ficar nulo até a
+    // primeira chamada de recalcularEPersistir() para o cliente.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estagio_atual")
+    private EstagioCliente estagioAtual;
+
+    @Column(name = "estagio_atualizado_em")
+    private LocalDateTime estagioAtualizadoEm;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime criadoEm = LocalDateTime.now();
 
@@ -57,6 +72,8 @@ public class Cliente {
     public LocalDateTime getUltimoLembreteRetorno() { return ultimoLembreteRetorno; }
     public LocalDateTime getCriadoEm()           { return criadoEm; }
     public Estabelecimento getEstabelecimento()  { return estabelecimento; }
+    public EstagioCliente getEstagioAtual()      { return estagioAtual; }
+    public LocalDateTime getEstagioAtualizadoEm(){ return estagioAtualizadoEm; }
 
     public void setId(Long id)                                     { this.id = id; }
     public void setNome(String nome)                               { this.nome = nome; }
@@ -72,4 +89,6 @@ public class Cliente {
     public void setUltimoLembreteRetorno(LocalDateTime dt)         { this.ultimoLembreteRetorno = dt; }
     public void setCriadoEm(LocalDateTime criadoEm)               { this.criadoEm = criadoEm; }
     public void setEstabelecimento(Estabelecimento estabelecimento){ this.estabelecimento = estabelecimento; }
+    public void setEstagioAtual(EstagioCliente estagioAtual)       { this.estagioAtual = estagioAtual; }
+    public void setEstagioAtualizadoEm(LocalDateTime dt)           { this.estagioAtualizadoEm = dt; }
 }

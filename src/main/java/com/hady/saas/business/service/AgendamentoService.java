@@ -35,17 +35,26 @@ public class AgendamentoService {
     private final ProfissionalRepository profissionalRepository;
     private final ClienteService clienteService;
     private final NotificacaoService notificacaoService;
+    private final ClienteSegmentacaoService clienteSegmentacaoService;
+    private final WhatsAppService whatsAppService;
+    private final IndicacaoService indicacaoService;
 
     public AgendamentoService(AgendamentoRepository agendamentoRepository,
                               HorarioFuncionamentoRepository horarioRepository,
                               ProfissionalRepository profissionalRepository,
                               ClienteService clienteService,
-                              @Lazy NotificacaoService notificacaoService) {
+                              @Lazy NotificacaoService notificacaoService,
+                              ClienteSegmentacaoService clienteSegmentacaoService,
+                              @Lazy WhatsAppService whatsAppService,
+                              @Lazy IndicacaoService indicacaoService) {
         this.agendamentoRepository = agendamentoRepository;
         this.horarioRepository = horarioRepository;
         this.profissionalRepository = profissionalRepository;
         this.clienteService = clienteService;
         this.notificacaoService = notificacaoService;
+        this.clienteSegmentacaoService = clienteSegmentacaoService;
+        this.whatsAppService = whatsAppService;
+        this.indicacaoService = indicacaoService;
     }
 
     // ── agendarPeloCliente agora aceita aguardandoPagamento ──────────────────
@@ -91,6 +100,33 @@ public class AgendamentoService {
                 notificacaoService.enviarConfirmacao(agendamento);
             } catch (Exception e) {
                 log.error("[WhatsApp] Falha ao enviar confirmação para agendamento id={}: {}",
+                        agendamento.getId(), e.getMessage(), e);
+            }
+
+            // Item 15 (PLATINUM/ELITE) — pagamento via WhatsApp: agendamento
+            // já nasceu AGENDADO (sinal não é obrigatório aqui), mas se o
+            // estabelecimento aceita pagamento online, oferece a opção de
+            // adiantar via link. Mensagem transacional — disponível em
+            // qualquer plano com pagamento habilitado, não é exclusiva de
+            // ELITE/PLATINUM.
+            if (estabelecimento.isAceitaPagamento()) {
+                try {
+                    whatsAppService.enviarConvitePagamentoOpcional(agendamento);
+                } catch (Exception e) {
+                    log.error("[WhatsApp] Falha ao enviar convite de pagamento opcional para agendamento id={}: {}",
+                            agendamento.getId(), e.getMessage(), e);
+                }
+            }
+        } else {
+            // Item 15 (PLATINUM/ELITE) — pagamento via WhatsApp: sinal
+            // obrigatório, agendamento nasceu AGUARDANDO_PAGAMENTO. Manda o
+            // link de pagamento imediatamente, já que sem isso o cliente não
+            // teria nenhum aviso de que precisa pagar pra garantir o horário
+            // (antes desta mudança, nenhuma mensagem era enviada aqui).
+            try {
+                whatsAppService.enviarSolicitacaoPagamentoSinal(agendamento);
+            } catch (Exception e) {
+                log.error("[WhatsApp] Falha ao enviar solicitação de pagamento de sinal para agendamento id={}: {}",
                         agendamento.getId(), e.getMessage(), e);
             }
         }
@@ -159,6 +195,24 @@ public class AgendamentoService {
         return salvo;
     }
 
+    // Item 2 (camada ELITE): cliente respondeu "1" (confirmar presença) ao lembrete
+    // de 24h/2h pelo bot conversacional. Não muda o StatusAgendamento (já está
+    // AGENDADO) — só registra que o cliente reagiu, pra métricas futuras
+    // (item 12, PLATINUM: taxa de confirmação). Diferente de cancelar, que sim
+    // muda o status via cancelar() abaixo.
+    @Transactional
+    public Agendamento confirmarPresenca(Long agendamentoId, Long estabelecimentoId) {
+        Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
+
+        if (agendamento.getStatus() != StatusAgendamento.AGENDADO) {
+            throw new RuntimeException("Este agendamento não está mais aguardando confirmação");
+        }
+
+        agendamento.setConfirmadoPeloCliente(true);
+        agendamento.setConfirmadoEm(LocalDateTime.now());
+        return agendamentoRepository.save(agendamento);
+    }
+
     @Transactional
     public Agendamento concluir(Long agendamentoId, Long estabelecimentoId) {
         Agendamento agendamento = buscarPorId(agendamentoId, estabelecimentoId);
@@ -168,7 +222,28 @@ public class AgendamentoService {
         }
 
         agendamento.setStatus(StatusAgendamento.CONCLUIDO);
-        return agendamentoRepository.save(agendamento);
+        Agendamento salvo = agendamentoRepository.save(agendamento);
+
+        // Migration V23: CONCLUIDO é o único status que entra na conta de
+        // visitas/última visita (ver buscarEstatisticasCliente), então este é
+        // o ponto certo pra reavaliar e persistir o EstagioCliente. Erros aqui
+        // já são engolidos dentro do próprio serviço de segmentação — nunca
+        // devem impedir a conclusão do agendamento.
+        clienteSegmentacaoService.recalcularEPersistir(
+                salvo.getCliente().getId(), estabelecimentoId);
+
+        // Item 17 (indicação/referral): se este cliente veio de um link de
+        // indicação pendente, este é o "primeiro atendimento concluído" que
+        // libera os cupons pro indicador e pro indicado. Não faz nada se não
+        // houver indicação pendente — caminho normal na maioria dos casos.
+        try {
+            indicacaoService.processarConclusaoSeAplicavel(salvo);
+        } catch (Exception e) {
+            log.error("[Indicacao] Falha ao processar conclusão de indicação para agendamento id={}: {}",
+                    salvo.getId(), e.getMessage(), e);
+        }
+
+        return salvo;
     }
 
     @Transactional
@@ -191,6 +266,15 @@ public class AgendamentoService {
         }
 
         return salvo;
+    }
+
+    // Item 3 (reagendamento self-service): agendamentos futuros e ainda ativos
+    // (AGENDADO ou AGUARDANDO_PAGAMENTO) de um cliente, usados pelo bot
+    // conversacional para saber o que ele pode remarcar quando pede "remarcar"
+    // fora de qualquer fluxo em andamento.
+    public List<Agendamento> listarFuturosAtivosDoCliente(Long clienteId, Long estabelecimentoId) {
+        return agendamentoRepository.findFuturosAtivosPorCliente(
+                clienteId, estabelecimentoId, LocalDateTime.now(ZONA_BRASIL));
     }
 
     public void enviarLembrete(Long agendamentoId, Long estabelecimentoId) {

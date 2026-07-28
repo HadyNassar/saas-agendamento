@@ -20,6 +20,8 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
 
     Optional<Estabelecimento> findByMpSubscriptionId(String mpSubscriptionId);
 
+    Optional<Estabelecimento> findByEvolutionInstanceName(String evolutionInstanceName);
+
     @Query(value = """
             SELECT * FROM estabelecimentos e
             WHERE e.ativo = true

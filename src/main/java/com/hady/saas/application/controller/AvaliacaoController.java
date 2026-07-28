@@ -1,11 +1,16 @@
 package com.hady.saas.application.controller;
 
+import com.hady.saas.business.service.IndicacaoService;
+import com.hady.saas.business.service.WhatsAppService;
 import com.hady.saas.domain.agendamento.Agendamento;
+import com.hady.saas.domain.alerta.AlertaPainel;
 import com.hady.saas.domain.avaliacao.AvaliacaoAtendimento;
 import com.hady.saas.domain.enums.Plano;
 import com.hady.saas.domain.enums.StatusAgendamento;
+import com.hady.saas.domain.enums.TipoAlerta;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.AgendamentoRepository;
+import com.hady.saas.infrastructure.repository.AlertaPainelRepository;
 import com.hady.saas.infrastructure.repository.AvaliacaoRepository;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.security.AuthUtil;
@@ -13,6 +18,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -40,16 +46,25 @@ public class AvaliacaoController {
     private final AgendamentoRepository agendamentoRepository;
     private final AvaliacaoRepository avaliacaoRepository;
     private final EstabelecimentoRepository estabelecimentoRepository;
+    private final AlertaPainelRepository alertaPainelRepository;
     private final AuthUtil authUtil;
+    private final WhatsAppService whatsAppService;
+    private final IndicacaoService indicacaoService;
 
     public AvaliacaoController(AgendamentoRepository agendamentoRepository,
                                AvaliacaoRepository avaliacaoRepository,
                                EstabelecimentoRepository estabelecimentoRepository,
-                               AuthUtil authUtil) {
+                               AlertaPainelRepository alertaPainelRepository,
+                               AuthUtil authUtil,
+                               @Lazy WhatsAppService whatsAppService,
+                               IndicacaoService indicacaoService) {
         this.agendamentoRepository = agendamentoRepository;
         this.avaliacaoRepository = avaliacaoRepository;
         this.estabelecimentoRepository = estabelecimentoRepository;
+        this.alertaPainelRepository = alertaPainelRepository;
         this.authUtil = authUtil;
+        this.whatsAppService = whatsAppService;
+        this.indicacaoService = indicacaoService;
     }
 
     // ── GET /app/{slug}/avaliacao/{agendamentoId} ─────────────────────────────
@@ -104,6 +119,29 @@ public class AvaliacaoController {
         avaliacao.setComentario(dto.getComentario());
         avaliacaoRepository.save(avaliacao);
 
+        // Item 16 — gatilho de reputação: reage à nota assim que ela é registrada.
+        // Nota 5 → agradecimento simples via WhatsApp (sem link de review externo,
+        // não existe página de review público fora do app hoje).
+        // Nota 1 ou 2 → alerta no painel para o dono, sem mensagem de WhatsApp.
+        if (dto.getNota() == 5) {
+            String linkIndicacao = indicacaoService.gerarLinkIndicacaoOuNull(
+                    agendamento.getEstabelecimento(), agendamento.getCliente());
+            whatsAppService.enviarAgradecimentoNotaAlta(agendamento, linkIndicacao);
+        } else if (dto.getNota() <= 2) {
+            AlertaPainel alerta = new AlertaPainel();
+            alerta.setEstabelecimento(agendamento.getEstabelecimento());
+            alerta.setTipo(TipoAlerta.AVALIACAO_NOTA_BAIXA);
+            alerta.setReferenciaId(avaliacao.getId());
+            alerta.setMensagem(String.format(
+                    "%s deu nota %d na avaliação do atendimento com %s (%s).",
+                    agendamento.getCliente().getNome(),
+                    dto.getNota(),
+                    agendamento.getProfissional().getNome(),
+                    agendamento.getServico().getNome()
+            ));
+            alertaPainelRepository.save(alerta);
+        }
+
         return ResponseEntity.ok("Avaliação registrada! Obrigado pelo feedback 😊");
     }
 
@@ -116,8 +154,10 @@ public class AvaliacaoController {
         Estabelecimento estab = estabelecimentoRepository.findBySlug(slug)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
-        // Só exibe avaliações públicas para planos ELITE e PLATINUM
-        if (estab.getPlano() != Plano.ELITE && estab.getPlano() != Plano.PLATINUM) {
+        // Só exibe avaliações públicas para planos != STANDARD (ELITE e
+        // PLATINUM são idênticos em funcionalidade — padronizado 27/07/2026,
+        // mesmo comportamento de antes, só a forma de checar mudou).
+        if (estab.getPlano() == Plano.STANDARD) {
             return ResponseEntity.ok(Map.of(
                     "media", 0.0,
                     "total", 0,
@@ -253,7 +293,7 @@ public class AvaliacaoController {
         Estabelecimento estab = estabelecimentoRepository.findById(estabelecimentoId)
                 .orElseThrow(() -> new RuntimeException("Estabelecimento não encontrado"));
 
-        if (estab.getPlano() != Plano.ELITE && estab.getPlano() != Plano.PLATINUM) {
+        if (estab.getPlano() == Plano.STANDARD) {
             throw new RuntimeException("Avaliações de clientes disponíveis nos planos Elite e Platinum.");
         }
     }

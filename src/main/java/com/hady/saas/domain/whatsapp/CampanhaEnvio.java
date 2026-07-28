@@ -1,0 +1,103 @@
+package com.hady.saas.domain.whatsapp;
+
+import com.hady.saas.domain.enums.EstagioCliente;
+import com.hady.saas.domain.estabelecimento.Estabelecimento;
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+/**
+ * Cabeçalho de uma campanha de disparo em massa (itens 9/10 da camada
+ * PLATINUM, e a parte de "campanha" da seção 5-B, sem a parte de cupom).
+ *
+ * Uma CampanhaEnvio nunca envia nada diretamente — ela só descreve a intenção
+ * (filtro + mensagem) e guarda um resumo de progresso. O envio de verdade
+ * acontece item a item em CampanhaEnvioItem, processado de forma assíncrona
+ * por CampanhaEnvioProcessorJob (fila via banco + @Scheduled, sem
+ * RabbitMQ/Kafka), pelos motivos já discutidos: qualquer volume real de
+ * clientes precisa respeitar rate limit da Evolution API e não pode travar
+ * a requisição HTTP que criou a campanha.
+ *
+ * IMPORTANTE — ainda não tem consumidor real: nenhum controller cria
+ * CampanhaEnvio ainda (isso é a próxima etapa, seja via disparo manual do
+ * dono do salão — seção 5-B — ou automático por regra — itens 9/10). Esta
+ * classe só estabelece a fundação de fila/processamento.
+ */
+@Entity
+@Table(name = "campanha_envio")
+public class CampanhaEnvio {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "estabelecimento_id", nullable = false)
+    private Estabelecimento estabelecimento;
+
+    // Escolha de design: filtro simples por EstagioCliente nesta primeira
+    // versão (cobre "todos os VIP", "todos os INATIVO" etc.), que já é
+    // suficiente para os itens 9/10. Um filtro mais rico (ticket médio,
+    // serviço mais usado, citado na seção 5-B) pode virar uma coluna JSON
+    // separada depois, sem quebrar esta — não implementado ainda porque não
+    // foi pedido nesta etapa.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "filtro_estagio")
+    private EstagioCliente filtroEstagio;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String mensagem;
+
+    // MANUAL (dono disparou pelo painel) ou AUTOMATICA (regra do sistema,
+    // itens 9/10). Nenhuma das duas origens está implementada ainda — esta
+    // coluna só existe para não precisar de migration nova quando a primeira
+    // for construída.
+    @Column(nullable = false, length = 20)
+    private String origem = "MANUAL";
+
+    // CRIADA -> EM_ANDAMENTO -> CONCLUIDA (ou CONCLUIDA_COM_ERROS se algum
+    // item falhou). O job de processamento é quem transiciona estes estados.
+    @Column(nullable = false, length = 20)
+    private String status = "CRIADA";
+
+    @Column(name = "total_destinatarios")
+    private int totalDestinatarios = 0;
+
+    @Column(name = "total_enviados")
+    private int totalEnviados = 0;
+
+    @Column(name = "total_erros")
+    private int totalErros = 0;
+
+    @Column(name = "criado_em", nullable = false, updatable = false)
+    private LocalDateTime criadoEm = LocalDateTime.now();
+
+    @Column(name = "concluido_em")
+    private LocalDateTime concluidoEm;
+
+    public CampanhaEnvio() {}
+
+    public Long getId()                          { return id; }
+    public Estabelecimento getEstabelecimento()  { return estabelecimento; }
+    public EstagioCliente getFiltroEstagio()     { return filtroEstagio; }
+    public String getMensagem()                  { return mensagem; }
+    public String getOrigem()                    { return origem; }
+    public String getStatus()                    { return status; }
+    public int getTotalDestinatarios()           { return totalDestinatarios; }
+    public int getTotalEnviados()                { return totalEnviados; }
+    public int getTotalErros()                   { return totalErros; }
+    public LocalDateTime getCriadoEm()            { return criadoEm; }
+    public LocalDateTime getConcluidoEm()         { return concluidoEm; }
+
+    public void setId(Long id)                                     { this.id = id; }
+    public void setEstabelecimento(Estabelecimento estabelecimento){ this.estabelecimento = estabelecimento; }
+    public void setFiltroEstagio(EstagioCliente filtroEstagio)     { this.filtroEstagio = filtroEstagio; }
+    public void setMensagem(String mensagem)                       { this.mensagem = mensagem; }
+    public void setOrigem(String origem)                           { this.origem = origem; }
+    public void setStatus(String status)                           { this.status = status; }
+    public void setTotalDestinatarios(int totalDestinatarios)      { this.totalDestinatarios = totalDestinatarios; }
+    public void setTotalEnviados(int totalEnviados)                { this.totalEnviados = totalEnviados; }
+    public void setTotalErros(int totalErros)                      { this.totalErros = totalErros; }
+    public void setCriadoEm(LocalDateTime criadoEm)                { this.criadoEm = criadoEm; }
+    public void setConcluidoEm(LocalDateTime concluidoEm)          { this.concluidoEm = concluidoEm; }
+}

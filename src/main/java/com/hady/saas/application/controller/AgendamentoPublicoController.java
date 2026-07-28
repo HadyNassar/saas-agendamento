@@ -2,17 +2,24 @@ package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.AgendamentoPublicoDTO;
 import com.hady.saas.application.dto.ProfissionalPublicoDTO;
+import com.hady.saas.application.dto.ValidarCupomEstabelecimentoResponseDTO;
 import com.hady.saas.business.service.AgendamentoService;
 import com.hady.saas.business.service.ClienteService;
+import com.hady.saas.business.service.CupomEstabelecimentoService;
+import com.hady.saas.business.service.CupomEstabelecimentoService.CupomEstabelecimentoException;
 import com.hady.saas.business.service.ProfissionalService;
 import com.hady.saas.business.service.ServicoService;
+import com.hady.saas.domain.agendamento.Agendamento;
 import com.hady.saas.domain.cliente.Cliente;
+import com.hady.saas.domain.cupom.CupomEstabelecimento;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.domain.servico.Servico;
 import com.hady.saas.infrastructure.repository.AvaliacaoRepository;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,25 +35,30 @@ import java.util.Map;
 @RequestMapping("/app/{slug}")
 public class AgendamentoPublicoController {
 
+    private static final Logger log = LoggerFactory.getLogger(AgendamentoPublicoController.class);
+
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final ProfissionalService profissionalService;
     private final ServicoService servicoService;
     private final ClienteService clienteService;
     private final AgendamentoService agendamentoService;
     private final AvaliacaoRepository avaliacaoRepository;
+    private final CupomEstabelecimentoService cupomEstabelecimentoService;
 
     public AgendamentoPublicoController(EstabelecimentoRepository estabelecimentoRepository,
                                         ProfissionalService profissionalService,
                                         ServicoService servicoService,
                                         ClienteService clienteService,
                                         AgendamentoService agendamentoService,
-                                        AvaliacaoRepository avaliacaoRepository) {
+                                        AvaliacaoRepository avaliacaoRepository,
+                                        CupomEstabelecimentoService cupomEstabelecimentoService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.profissionalService = profissionalService;
         this.servicoService = servicoService;
         this.clienteService = clienteService;
         this.agendamentoService = agendamentoService;
         this.avaliacaoRepository = avaliacaoRepository;
+        this.cupomEstabelecimentoService = cupomEstabelecimentoService;
     }
 
     // GET /app/{slug}/configuracoes
@@ -155,6 +167,42 @@ public class AgendamentoPublicoController {
         return ResponseEntity.ok(resultado);
     }
 
+    // GET /app/{slug}/cupom/{codigo}?servicoId=123
+    //
+    // Seção 5-B: usado pelo front quando o link de agendamento veio com
+    // ?cupom=CODIGO, pra mostrar o valor com desconto ANTES do cliente
+    // confirmar. Não consome o uso do cupom (só validar() faz isso — quem
+    // consome de fato é aplicarNoAgendamento(), chamado só em /agendar).
+    // servicoId é opcional: sem ele, devolve só a validade/tipo/valor do
+    // cupom, sem calcular valorComDesconto (que depende do preço do serviço
+    // escolhido, que o cliente ainda pode não ter selecionado nessa tela).
+    @GetMapping("/cupom/{codigo}")
+    public ResponseEntity<ValidarCupomEstabelecimentoResponseDTO> validarCupom(
+            @PathVariable String slug,
+            @PathVariable String codigo,
+            @RequestParam(required = false) Long servicoId) {
+
+        Estabelecimento estabelecimento = buscarEstabelecimento(slug);
+
+        try {
+            CupomEstabelecimento cupom = cupomEstabelecimentoService.validar(estabelecimento, codigo);
+
+            if (servicoId == null) {
+                return ResponseEntity.ok(ValidarCupomEstabelecimentoResponseDTO.valido(
+                        cupom.getCodigo(), cupom.getTipoDesconto(), cupom.getValorDesconto(), null, null));
+            }
+
+            Servico servico = servicoService.buscarPorId(servicoId, estabelecimento.getId());
+            var valorComDesconto = cupom.calcularValorComDesconto(servico.getPreco());
+
+            return ResponseEntity.ok(ValidarCupomEstabelecimentoResponseDTO.valido(
+                    cupom.getCodigo(), cupom.getTipoDesconto(), cupom.getValorDesconto(),
+                    servico.getPreco(), valorComDesconto));
+        } catch (CupomEstabelecimentoException e) {
+            return ResponseEntity.ok(ValidarCupomEstabelecimentoResponseDTO.invalido(e.getMessage()));
+        }
+    }
+
     // POST /app/{slug}/agendar
     @PostMapping("/agendar")
     public ResponseEntity<Map<String, Object>> agendar(@PathVariable String slug,
@@ -176,16 +224,50 @@ public class AgendamentoPublicoController {
             throw new RuntimeException("Este estabelecimento não está aceitando agendamentos no momento.");
         }
 
+        // Seção 5-B: se o link trouxe um cupom, valida ANTES de criar o
+        // agendamento — se o cupom não for mais válido (expirou, esgotou,
+        // foi desativado desde que o cliente abriu o link), a requisição
+        // falha aqui, sem chegar a criar o agendamento. Evita o cenário de
+        // "achei que ia ter desconto" resultar num agendamento cobrado cheio.
+        if (dto.getCupomCodigo() != null && !dto.getCupomCodigo().isBlank()) {
+            cupomEstabelecimentoService.validar(estabelecimento, dto.getCupomCodigo());
+        }
+
         var agendamento = agendamentoService.agendarPeloCliente(
                 cliente, profissional, servico, estabelecimento,
                 dto.getDataHoraInicio(), dto.isAguardandoPagamento()
         );
 
-        return ResponseEntity.ok(Map.of(
-                "agendamentoId", agendamento.getId(),
-                "clienteId", cliente.getId(),
-                "mensagem", "Agendamento realizado com sucesso!"
-        ));
+        Map<String, Object> resposta = new HashMap<>();
+        resposta.put("agendamentoId", agendamento.getId());
+        resposta.put("clienteId", cliente.getId());
+        resposta.put("mensagem", "Agendamento realizado com sucesso!");
+
+        if (dto.getCupomCodigo() != null && !dto.getCupomCodigo().isBlank()) {
+            aplicarCupomOuRegistrarFalha(estabelecimento, agendamento, dto.getCupomCodigo(), resposta);
+        }
+
+        return ResponseEntity.ok(resposta);
+    }
+
+    // Aplica o cupom sobre o agendamento já criado. Se algo mudar entre a
+    // validação prévia (linha acima, antes de criar) e este momento — ex:
+    // outro cliente consumiu o último uso do cupom nesse intervalo curto —
+    // o agendamento em si NÃO é desfeito (já é um compromisso legítimo do
+    // cliente); só avisamos na resposta que o desconto não pôde ser
+    // aplicado, pro front decidir como comunicar isso.
+    private void aplicarCupomOuRegistrarFalha(Estabelecimento estabelecimento, Agendamento agendamento,
+                                              String cupomCodigo, Map<String, Object> resposta) {
+        try {
+            cupomEstabelecimentoService.aplicarNoAgendamento(estabelecimento, agendamento, cupomCodigo);
+            resposta.put("cupomAplicado", true);
+            resposta.put("valorDescontoAplicado", agendamento.getValorDescontoAplicado());
+        } catch (CupomEstabelecimentoException e) {
+            log.warn("[Cupom estabelecimento] Falha ao aplicar cupom '{}' no agendamento id={}: {}",
+                    cupomCodigo, agendamento.getId(), e.getMessage());
+            resposta.put("cupomAplicado", false);
+            resposta.put("cupomErro", e.getMessage());
+        }
     }
 
     private Estabelecimento buscarEstabelecimento(String slug) {

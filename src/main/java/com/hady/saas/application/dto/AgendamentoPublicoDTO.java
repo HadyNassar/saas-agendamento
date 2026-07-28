@@ -28,6 +28,12 @@ public class AgendamentoPublicoDTO {
 
     private boolean aguardandoPagamento;
 
+    // Seção 5-B — cupom do estabelecimento, opcional. Preenchido
+    // automaticamente pelo front quando o link de agendamento veio com
+    // ?cupom=CODIGO (decisão confirmada: aplicação só via link, sem campo de
+    // digitar código no formulário).
+    private String cupomCodigo;
+
     // GETTERS
     public String getClienteNome() { return clienteNome; }
     public String getClienteTelefone() { return clienteTelefone; }
@@ -36,6 +42,7 @@ public class AgendamentoPublicoDTO {
     public Long getServicoId() { return servicoId; }
     public LocalDateTime getDataHoraInicio() { return dataHoraInicio; }
     public boolean isAguardandoPagamento() { return aguardandoPagamento; }
+    public String getCupomCodigo() { return cupomCodigo; }
 
     // SETTERS
     public void setClienteNome(String clienteNome) { this.clienteNome = clienteNome; }
@@ -45,4 +52,5 @@ public class AgendamentoPublicoDTO {
     public void setServicoId(Long servicoId) { this.servicoId = servicoId; }
     public void setDataHoraInicio(LocalDateTime dataHoraInicio) { this.dataHoraInicio = dataHoraInicio; }
     public void setAguardandoPagamento(boolean aguardandoPagamento) { this.aguardandoPagamento = aguardandoPagamento; }
+    public void setCupomCodigo(String cupomCodigo) { this.cupomCodigo = cupomCodigo; }
 }

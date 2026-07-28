@@ -22,4 +22,17 @@ public interface ProfissionalRepository extends JpaRepository<Profissional, Long
     // JOIN FETCH usuario para permitir acesso ao usuarioId fora de transação (ex: excluir)
     @Query("SELECT p FROM Profissional p LEFT JOIN FETCH p.usuario WHERE p.id = :id AND p.estabelecimento.id = :estabId")
     Optional<Profissional> findByIdAndEstabelecimentoId(@Param("id") Long id, @Param("estabId") Long estabelecimentoId);
+
+    // Usado pelo bot conversacional (BotAgendamentoService): lista, já filtrado
+    // no banco, quem realmente presta aquele serviço — evita acessar a coleção
+    // LAZY `Profissional.servicos` fora de uma transação/sessão aberta.
+    @Query("""
+           SELECT DISTINCT p FROM Profissional p JOIN p.servicos s
+           WHERE p.estabelecimento.id = :estabId
+             AND p.ativo = true
+             AND s.id = :servicoId
+           ORDER BY p.nome
+           """)
+    List<Profissional> findAtivosPorServico(@Param("estabId") Long estabelecimentoId,
+                                            @Param("servicoId") Long servicoId);
 }

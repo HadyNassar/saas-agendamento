@@ -1,6 +1,7 @@
 package com.hady.saas.webhook;
 
 import com.hady.saas.business.service.AssinaturaService;
+import com.hady.saas.business.service.WhatsAppService;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.infrastructure.repository.CobrancaPlanoRepository;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
@@ -32,15 +33,18 @@ public class WebhookProcessorService {
     private final TransacaoRepository transacaoRepo;
     private final CobrancaPlanoRepository cobrancaRepo;
     private final AssinaturaService assinaturaService;
+    private final WhatsAppService whatsAppService;
 
     public WebhookProcessorService(EstabelecimentoRepository estabelecimentoRepo,
                                    TransacaoRepository transacaoRepo,
                                    CobrancaPlanoRepository cobrancaRepo,
-                                   @Lazy AssinaturaService assinaturaService) {
+                                   @Lazy AssinaturaService assinaturaService,
+                                   @Lazy WhatsAppService whatsAppService) {
         this.estabelecimentoRepo = estabelecimentoRepo;
         this.transacaoRepo = transacaoRepo;
         this.cobrancaRepo = cobrancaRepo;
         this.assinaturaService = assinaturaService;
+        this.whatsAppService = whatsAppService;
     }
 
     @Transactional
@@ -87,6 +91,8 @@ public class WebhookProcessorService {
 
         // 2. Verifica se é pagamento de agendamento (Transacao)
         transacaoRepo.findByMpPaymentId(mpPaymentId).ifPresent(transacao -> {
+            String statusAnterior = transacao.getStatus();
+
             String novoStatus = switch (mpStatus) {
                 case "approved"  -> "APROVADO";
                 case "rejected"  -> "REJEITADO";
@@ -97,6 +103,21 @@ public class WebhookProcessorService {
             transacao.setStatus(novoStatus);
             transacaoRepo.save(transacao);
             log.info("[Webhook MP] Transação atualizada — mpPaymentId={} status={}", mpPaymentId, novoStatus);
+
+            // Item 15 (PLATINUM/ELITE) — pagamento via WhatsApp: avisa o
+            // cliente quando o pagamento é aprovado. Checa a transição
+            // (statusAnterior != APROVADO) antes de disparar para não
+            // reenviar a mensagem se o Mercado Pago reenviar o mesmo webhook
+            // (retry em duplicidade é comportamento esperado do MP).
+            if ("APROVADO".equals(novoStatus) && !"APROVADO".equals(statusAnterior)
+                    && transacao.getAgendamento() != null) {
+                try {
+                    whatsAppService.enviarPagamentoAprovado(transacao.getAgendamento());
+                } catch (Exception e) {
+                    log.error("[Webhook MP] Falha ao enviar confirmação de pagamento via WhatsApp — transacaoId={}: {}",
+                            transacao.getId(), e.getMessage(), e);
+                }
+            }
         });
     }
 }

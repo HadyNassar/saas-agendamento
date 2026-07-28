@@ -90,6 +90,11 @@ public class SecurityConfig {
                         .requestMatchers("/painel/mercadopago/callback").permitAll()
                         .requestMatchers("/webhook/mercadopago").permitAll()
 
+                        // ── Evolution API (WhatsApp) — recebe eventos de mensagem;
+                        // validação de origem é feita dentro do próprio controller
+                        // comparando o header apikey com evolution.api.key ────────
+                        .requestMatchers("/webhook/evolution").permitAll()
+
                         // ── ⚠️ TEMPORÁRIO — remover após criar o admin master ───
                         .requestMatchers("/setup/**").permitAll()
 

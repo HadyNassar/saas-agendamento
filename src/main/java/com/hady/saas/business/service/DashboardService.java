@@ -1,5 +1,6 @@
 package com.hady.saas.business.service;
 
+import com.hady.saas.domain.agendamento.Agendamento;
 import com.hady.saas.domain.enums.StatusAgendamento;
 import com.hady.saas.infrastructure.repository.AgendamentoRepository;
 import com.hady.saas.infrastructure.repository.ClienteRepository;
@@ -45,10 +46,15 @@ public class DashboardService {
                 .filter(a -> a.getStatus() == StatusAgendamento.FALTOU).count();
         long totalGeral = agendamentos.size();
 
-        // Faturamento — soma dos preços dos serviços concluídos
+        // Faturamento — soma dos preços dos serviços concluídos.
+        // CORREÇÃO: usa o valor LÍQUIDO (preço do serviço menos o desconto de
+        // cupom, quando aplicado) em vez do preço cheio — senão o faturamento
+        // reportado fica maior do que o que o estabelecimento realmente
+        // recebeu sempre que um cupom (manual ou automático, seção 5-B/item 8)
+        // foi usado. Ver valorLiquido() no fim da classe.
         BigDecimal faturamento = agendamentos.stream()
                 .filter(a -> a.getStatus() == StatusAgendamento.CONCLUIDO)
-                .map(a -> a.getServico().getPreco())
+                .map(this::valorLiquido)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Taxa de faltas
@@ -72,13 +78,13 @@ public class DashboardService {
                         Collectors.counting()
                 ));
 
-        // Faturamento por profissional
+        // Faturamento por profissional — mesma correção: valor líquido, não preço cheio.
         Map<String, BigDecimal> faturamentoPorProfissional = agendamentos.stream()
                 .filter(a -> a.getStatus() == StatusAgendamento.CONCLUIDO)
                 .collect(Collectors.groupingBy(
                         a -> a.getProfissional().getNome(),
                         Collectors.reducing(BigDecimal.ZERO,
-                                a -> a.getServico().getPreco(),
+                                this::valorLiquido,
                                 BigDecimal::add)
                 ));
 
@@ -103,5 +109,17 @@ public class DashboardService {
         dashboard.put("totalClientes", totalClientes);
 
         return dashboard;
+    }
+
+    // Preço do serviço menos o desconto de cupom aplicado ao agendamento
+    // (quando houver) — ver correção em gerarDashboard() acima. Reaproveita
+    // Agendamento.valorDescontoAplicado, já gravado por
+    // CupomEstabelecimentoService.aplicarNoAgendamento().
+    private BigDecimal valorLiquido(Agendamento agendamento) {
+        BigDecimal preco = agendamento.getServico().getPreco();
+        if (agendamento.getValorDescontoAplicado() != null) {
+            return preco.subtract(agendamento.getValorDescontoAplicado()).max(BigDecimal.ZERO);
+        }
+        return preco;
     }
 }

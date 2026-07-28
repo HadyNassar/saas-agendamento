@@ -132,6 +132,41 @@ public class Estabelecimento {
     @Column(name = "facebook")
     private String facebook;
 
+    // Toggle geral do robô conversacional (aba de controle — painel do dono).
+    // NÃO afeta lembretes/confirmações automáticas (WhatsAppService), que são
+    // um serviço à parte e continuam rodando sempre, mesmo com isso desligado.
+    @Column(name = "robot_ativo", nullable = false)
+    private boolean robotAtivo = true;
+
+    // Item 8: cupom automático de reativação. Desligado por padrão — o dono
+    // precisa ativar explicitamente e configurar o desconto (migration V26).
+    // Quando ativo, CampanhaAutomaticaService gera um CupomEstabelecimento
+    // novo pra cada cliente que virar INATIVO e anexa o link já com o cupom
+    // aplicado na mensagem automática.
+    @Column(name = "cupom_reativacao_automatico_ativo", nullable = false)
+    private boolean cupomReativacaoAutomaticoAtivo = false;
+
+    @Column(name = "cupom_reativacao_tipo_desconto", length = 20)
+    private String cupomReativacaoTipoDesconto; // PERCENTUAL | VALOR_FIXO
+
+    @Column(name = "cupom_reativacao_valor_desconto", precision = 10, scale = 2)
+    private BigDecimal cupomReativacaoValorDesconto;
+
+    // Item 17 (indicação/referral) — mesmo padrão do cupom de reativação
+    // acima: opt-in do dono, tipo e valor de desconto configuráveis.
+    // Quando ativo, WhatsAppService.enviarAgradecimentoNotaAlta (nota 5)
+    // anexa um link de indicação único na mensagem. Quando o indicado
+    // conclui o primeiro atendimento, DOIS cupons são gerados — um pro
+    // indicador, um pro indicado — ambos com esse mesmo tipo/valor.
+    @Column(name = "indicacao_automatica_ativa", nullable = false)
+    private boolean indicacaoAutomaticaAtiva = false;
+
+    @Column(name = "indicacao_tipo_desconto", length = 20)
+    private String indicacaoTipoDesconto; // PERCENTUAL | VALOR_FIXO
+
+    @Column(name = "indicacao_valor_desconto", precision = 10, scale = 2)
+    private BigDecimal indicacaoValorDesconto;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "estabelecimento_comodidades", joinColumns = @JoinColumn(name = "estabelecimento_id"))
     @Column(name = "comodidade")
@@ -227,6 +262,13 @@ public class Estabelecimento {
     public String getInstagram()               { return instagram; }
     public String getWhatsappContato()         { return whatsappContato; }
     public String getFacebook()                { return facebook; }
+    public boolean isRobotAtivo()              { return robotAtivo; }
+    public boolean isCupomReativacaoAutomaticoAtivo() { return cupomReativacaoAutomaticoAtivo; }
+    public String getCupomReativacaoTipoDesconto()    { return cupomReativacaoTipoDesconto; }
+    public BigDecimal getCupomReativacaoValorDesconto() { return cupomReativacaoValorDesconto; }
+    public boolean isIndicacaoAutomaticaAtiva()       { return indicacaoAutomaticaAtiva; }
+    public String getIndicacaoTipoDesconto()          { return indicacaoTipoDesconto; }
+    public BigDecimal getIndicacaoValorDesconto()     { return indicacaoValorDesconto; }
     public List<String> getComodidades()       { return comodidades; }
     public List<String> getFormasPagamento()   { return formasPagamento; }
 
@@ -271,6 +313,13 @@ public class Estabelecimento {
     public void setInstagram(String instagram)                         { this.instagram = instagram; }
     public void setWhatsappContato(String whatsappContato)             { this.whatsappContato = whatsappContato; }
     public void setFacebook(String facebook)                           { this.facebook = facebook; }
+    public void setRobotAtivo(boolean robotAtivo)                      { this.robotAtivo = robotAtivo; }
+    public void setCupomReativacaoAutomaticoAtivo(boolean v)           { this.cupomReativacaoAutomaticoAtivo = v; }
+    public void setCupomReativacaoTipoDesconto(String v)               { this.cupomReativacaoTipoDesconto = v; }
+    public void setCupomReativacaoValorDesconto(BigDecimal v)          { this.cupomReativacaoValorDesconto = v; }
+    public void setIndicacaoAutomaticaAtiva(boolean v)                 { this.indicacaoAutomaticaAtiva = v; }
+    public void setIndicacaoTipoDesconto(String v)                     { this.indicacaoTipoDesconto = v; }
+    public void setIndicacaoValorDesconto(BigDecimal v)                { this.indicacaoValorDesconto = v; }
     public void setComodidades(List<String> comodidades)               { this.comodidades = comodidades; }
     public void setFormasPagamento(List<String> formasPagamento)       { this.formasPagamento = formasPagamento; }
 }

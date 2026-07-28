@@ -1,7 +1,6 @@
 package com.hady.saas.business.service;
 
 import com.hady.saas.domain.agendamento.Agendamento;
-import com.hady.saas.domain.enums.Plano;
 import com.hady.saas.infrastructure.repository.AgendamentoRepository;
 import com.hady.saas.infrastructure.repository.ClienteRepository;
 import org.slf4j.Logger;
@@ -21,13 +20,16 @@ public class NotificacaoService {
     private final AgendamentoRepository agendamentoRepository;
     private final ClienteRepository clienteRepository;
     private final WhatsAppService whatsAppService;
+    private final LembreteConfirmacaoService lembreteConfirmacaoService;
 
     public NotificacaoService(AgendamentoRepository agendamentoRepository,
                               ClienteRepository clienteRepository,
-                              WhatsAppService whatsAppService) {
+                              WhatsAppService whatsAppService,
+                              LembreteConfirmacaoService lembreteConfirmacaoService) {
         this.agendamentoRepository = agendamentoRepository;
         this.clienteRepository = clienteRepository;
         this.whatsAppService = whatsAppService;
+        this.lembreteConfirmacaoService = lembreteConfirmacaoService;
     }
 
     // ─── Confirmação ──────────────────────────────────────────────────────────
@@ -68,7 +70,15 @@ public class NotificacaoService {
 
         for (Agendamento a : agendamentos) {
             try {
-                whatsAppService.enviarLembrete24h(a);
+                // Item 2: só entra o prompt "responda 1/2" quando plano/robô/estado
+                // da conversa permitem (ver LembreteConfirmacaoService.elegivel).
+                // No STANDARD, ou com o robô pausado, o lembrete sai exatamente
+                // como sempre foi — sem prompt nenhum.
+                boolean elegivel = lembreteConfirmacaoService.elegivel(a);
+                whatsAppService.enviarLembrete24h(a, elegivel);
+                if (elegivel) {
+                    lembreteConfirmacaoService.prepararConversaParaConfirmacao(a);
+                }
             } catch (Exception e) {
                 log.error("[Lembrete 24h] Erro ao enviar para agendamento id={}", a.getId(), e);
             }
@@ -89,7 +99,11 @@ public class NotificacaoService {
 
         for (Agendamento a : agendamentos) {
             try {
-                whatsAppService.enviarLembrete2h(a);
+                boolean elegivel = lembreteConfirmacaoService.elegivel(a);
+                whatsAppService.enviarLembrete2h(a, elegivel);
+                if (elegivel) {
+                    lembreteConfirmacaoService.prepararConversaParaConfirmacao(a);
+                }
             } catch (Exception e) {
                 log.error("[Lembrete 2h] Erro ao enviar para agendamento id={}", a.getId(), e);
             }
@@ -100,7 +114,13 @@ public class NotificacaoService {
     // Roda a cada hora no minuto 30.
     // Busca agendamentos CONCLUÍDOS entre 50 e 70 minutos atrás que ainda
     // não receberam o WhatsApp de avaliação.
-    // Disponível para ELITE e PLATINUM.
+    // CORRIGIDO (27/07/2026): mensagem transacional básica, disponível para
+    // TODOS os planos, incluindo STANDARD — confirmado com o dono do produto
+    // que só o robô conversacional/automação de marketing (CampanhaEnvio,
+    // cupom, etc.) é exclusivo de ELITE/PLATINUM. Esta mensagem de pedido de
+    // avaliação, assim como confirmação/lembretes/cancelamento, sempre
+    // funcionou em todos os planos e o gating anterior (`!= ELITE/PLATINUM`)
+    // estava incorreto — bloqueava STANDARD indevidamente.
 
     @Scheduled(cron = "0 30 * * * *")
     @Transactional
@@ -116,15 +136,6 @@ public class NotificacaoService {
 
         for (Agendamento a : agendamentos) {
             try {
-                Plano plano = a.getEstabelecimento().getPlano();
-
-                // Apenas ELITE e PLATINUM
-                if (plano != Plano.ELITE && plano != Plano.PLATINUM) {
-                    a.setAvaliacaoEnviada(true); // marca para não processar novamente
-                    agendamentoRepository.save(a);
-                    continue;
-                }
-
                 whatsAppService.enviarSolicitacaoAvaliacao(a);
                 a.setAvaliacaoEnviada(true);
                 agendamentoRepository.save(a);
@@ -139,7 +150,14 @@ public class NotificacaoService {
     // Roda uma vez por dia às 10h.
     // Busca clientes cujo último atendimento concluído foi há ~30 dias
     // (janela: 29 a 31 dias atrás) e que não receberam lembrete nos últimos 25 dias.
-    // CORRIGIDO: disponível para ELITE e PLATINUM (era apenas PLATINUM).
+    // CORRIGIDO (27/07/2026): mensagem transacional básica, disponível para
+    // TODOS os planos, incluindo STANDARD — confirmado com o dono do produto
+    // que só o robô conversacional/automação de marketing é exclusivo de
+    // ELITE/PLATINUM. O gating anterior (`!= ELITE/PLATINUM`) estava
+    // incorreto e bloqueava STANDARD indevidamente. Não confundir com o
+    // gatilho automático de CAMPANHA por mudança de estágio (item 9/10/11 —
+    // CampanhaAutomaticaService), que É exclusivo de ELITE/PLATINUM por ser
+    // parte da automação de marketing, não uma notificação transacional.
 
     @Scheduled(cron = "0 0 10 * * *")
     @Transactional
@@ -156,10 +174,6 @@ public class NotificacaoService {
 
         for (Agendamento a : agendamentos) {
             try {
-                // CORRIGIDO: ELITE e PLATINUM
-                Plano plano = a.getEstabelecimento().getPlano();
-                if (plano != Plano.ELITE && plano != Plano.PLATINUM) continue;
-
                 whatsAppService.enviarLembreteRetorno(a);
 
                 // Atualiza timestamp para evitar reenvio

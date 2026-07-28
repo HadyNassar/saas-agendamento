@@ -33,13 +33,21 @@ public class WhatsAppMensagem {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String mensagem;
 
-    // CONFIRMACAO, LEMBRETE_24H, LEMBRETE_2H, CANCELAMENTO, FALTA
+    // CONFIRMACAO, LEMBRETE_24H, LEMBRETE_2H, CANCELAMENTO, FALTA, RECEBIDA_TEXTO
     @Column(nullable = false, length = 30)
     private String tipo = "NOTIFICACAO";
 
-    // PENDENTE, ENVIADO, ERRO
+    // PENDENTE, ENVIADO, ERRO, RECEBIDO
     @Column(nullable = false, length = 20)
     private String status = "PENDENTE";
+
+    // ENVIADA ou RECEBIDA
+    @Column(nullable = false, length = 10)
+    private String direcao = "ENVIADA";
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "conversa_id")
+    private ConversaWhatsApp conversa;
 
     @Column(name = "erro_detalhe", columnDefinition = "TEXT")
     private String erroDetalhe;
@@ -61,6 +69,8 @@ public class WhatsAppMensagem {
     public String getMensagem() { return mensagem; }
     public String getTipo() { return tipo; }
     public String getStatus() { return status; }
+    public String getDirecao() { return direcao; }
+    public ConversaWhatsApp getConversa() { return conversa; }
     public String getErroDetalhe() { return erroDetalhe; }
     public LocalDateTime getEnviadoEm() { return enviadoEm; }
     public LocalDateTime getCriadoEm() { return criadoEm; }
@@ -73,6 +83,8 @@ public class WhatsAppMensagem {
     public void setMensagem(String mensagem) { this.mensagem = mensagem; }
     public void setTipo(String tipo) { this.tipo = tipo; }
     public void setStatus(String status) { this.status = status; }
+    public void setDirecao(String direcao) { this.direcao = direcao; }
+    public void setConversa(ConversaWhatsApp conversa) { this.conversa = conversa; }
     public void setErroDetalhe(String erroDetalhe) { this.erroDetalhe = erroDetalhe; }
     public void setEnviadoEm(LocalDateTime enviadoEm) { this.enviadoEm = enviadoEm; }
     public void setCriadoEm(LocalDateTime criadoEm) { this.criadoEm = criadoEm; }

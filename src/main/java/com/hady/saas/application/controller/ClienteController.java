@@ -1,5 +1,7 @@
 package com.hady.saas.application.controller;
 
+import com.hady.saas.application.dto.EstatisticasClienteDTO;
+import com.hady.saas.business.service.ClienteSegmentacaoService;
 import com.hady.saas.business.service.ClienteService;
 import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.infrastructure.security.AuthUtil;
@@ -17,10 +19,13 @@ public class ClienteController {
 
     private final ClienteService clienteService;
     private final AuthUtil authUtil;
+    private final ClienteSegmentacaoService clienteSegmentacaoService;
 
-    public ClienteController(ClienteService clienteService, AuthUtil authUtil) {
+    public ClienteController(ClienteService clienteService, AuthUtil authUtil,
+                             ClienteSegmentacaoService clienteSegmentacaoService) {
         this.clienteService = clienteService;
         this.authUtil = authUtil;
+        this.clienteSegmentacaoService = clienteSegmentacaoService;
     }
 
     @GetMapping
@@ -35,7 +40,14 @@ public class ClienteController {
             @RequestParam(required = false) String busca,
             Authentication auth) {
         return ResponseEntity.ok(
-            clienteService.listarPaginado(authUtil.getEstabelecimentoId(auth), page, size, busca)
+                clienteService.listarPaginado(authUtil.getEstabelecimentoId(auth), page, size, busca)
+        );
+    }
+
+    @GetMapping("/{id}/estagio")
+    public ResponseEntity<EstatisticasClienteDTO> estagio(@PathVariable Long id, Authentication auth) {
+        return ResponseEntity.ok(
+                clienteSegmentacaoService.calcular(id, authUtil.getEstabelecimentoId(auth))
         );
     }
 

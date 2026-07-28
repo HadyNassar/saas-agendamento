@@ -63,8 +63,20 @@ public class PagamentoSplitService {
             throw new RuntimeException("Este estabelecimento não aceita pagamento online.");
         }
 
-        // Calcula o valor a cobrar: sinal (fixo ou %) ou valor total do serviço
+        // Calcula o valor a cobrar: sinal (fixo ou %) ou valor total do serviço.
+        //
+        // CORREÇÃO: se um CupomEstabelecimento foi aplicado a este agendamento
+        // (seção 5-B / item 8), a BASE de cálculo do sinal precisa ser o preço
+        // JÁ COM DESCONTO, não o preço cheio do serviço — senão o cliente
+        // pagaria sinal sobre um valor que ele nunca vai pagar de verdade.
+        // agendamento.getValorDescontoAplicado() é gravado por
+        // CupomEstabelecimentoService.aplicarNoAgendamento() no momento em
+        // que o cupom é consumido (POST /agendar), então já está disponível
+        // aqui quando o pagamento do sinal é processado depois.
         BigDecimal precoServico = agendamento.getServico().getPreco();
+        if (agendamento.getValorDescontoAplicado() != null) {
+            precoServico = precoServico.subtract(agendamento.getValorDescontoAplicado()).max(BigDecimal.ZERO);
+        }
         BigDecimal valorTotal;
 
         if (estab.isExigirSinal() && estab.getValorSinal() != null) {
