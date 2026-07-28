@@ -1,14 +1,16 @@
--- V25: suporte ao gatilho automático de campanha por mudança de estágio
--- (itens 9/10 da camada PLATINUM — ver CampanhaAutomaticaService).
+-- V27: cupom automático de reativação (item 8 — ver CampanhaAutomaticaService).
 --
--- Marca se uma transição de estágio já foi avaliada pelo job diário que cria
--- CampanhaEnvio automaticamente para clientes que viraram VIP ou INATIVO.
--- Linhas já existentes recebem TRUE (nada a reprocessar retroativamente —
--- só passa a valer pra transições novas a partir de agora); novas linhas
--- nascem FALSE por padrão.
+-- Permite ao dono do estabelecimento ativar, de forma opcional, o envio
+-- automático de um cupom de desconto sempre que um cliente vira INATIVO
+-- (junto com a mensagem de "sentimos sua falta" do gatilho de campanha
+-- automática — ver V25/V26).
+--
+-- Desligado por padrão (cupom_reativacao_automatico_ativo = FALSE) — nunca
+-- gera cupom pra ninguém sem o dono ativar explicitamente. Tipo e valor de
+-- desconto ficam nulos até o dono configurar pela primeira vez
+-- (CupomAutomaticoController).
 
-ALTER TABLE cliente_estagio_historico
-    ADD COLUMN processado_campanha_automatica BOOLEAN NOT NULL DEFAULT TRUE;
-
-ALTER TABLE cliente_estagio_historico
-    ALTER COLUMN processado_campanha_automatica SET DEFAULT FALSE;
+ALTER TABLE estabelecimentos
+    ADD COLUMN cupom_reativacao_automatico_ativo BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN cupom_reativacao_tipo_desconto VARCHAR(20),      -- PERCENTUAL | VALOR_FIXO
+    ADD COLUMN cupom_reativacao_valor_desconto NUMERIC(10,2);
