@@ -19,10 +19,16 @@ public class ConversaWhatsApp {
     // em andamento, ver BotAgendamentoService.processarMensagem),
     // AGUARDANDO_ESCOLHA_AGENDAMENTO e AGUARDANDO_NOVO_HORARIO (item 3 —
     // reagendamento self-service; ver BotAgendamentoService para o fluxo completo)
+    // AGUARDANDO_MENU_PRINCIPAL (menu de boas-vindas: cliente mandou "oi" e
+    // está escolhendo entre Agendar/Reagendar/Cancelar/Falar com humano) e
+    // AGUARDANDO_ESCOLHA_CANCELAMENTO (cliente escolheu "Cancelar" no menu e,
+    // tendo mais de um agendamento futuro, está escolhendo qual cancelar)
     public static final String ESTADO_LIVRE = "LIVRE";
     public static final String ESTADO_AGUARDANDO_CONFIRMACAO_LEMBRETE = "AGUARDANDO_CONFIRMACAO_LEMBRETE";
     public static final String ESTADO_AGUARDANDO_ESCOLHA_AGENDAMENTO = "AGUARDANDO_ESCOLHA_AGENDAMENTO";
     public static final String ESTADO_AGUARDANDO_NOVO_HORARIO = "AGUARDANDO_NOVO_HORARIO";
+    public static final String ESTADO_AGUARDANDO_MENU_PRINCIPAL = "AGUARDANDO_MENU_PRINCIPAL";
+    public static final String ESTADO_AGUARDANDO_ESCOLHA_CANCELAMENTO = "AGUARDANDO_ESCOLHA_CANCELAMENTO";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

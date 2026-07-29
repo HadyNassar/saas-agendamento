@@ -52,6 +52,13 @@ public class BotContexto {
     private Long reagendamentoProfissionalId;
     private Integer reagendamentoServicoDuracaoMinutos;
 
+    // Item 4 (menu principal): quando o cliente escolhe "3-Cancelar" no menu e
+    // tem mais de um agendamento futuro ativo, guarda os IDs na ordem exibida
+    // (mesmo padrão de agendamentosParaEscolherIds do reagendamento), pra
+    // mapear a resposta numérica de volta ao agendamento certo a cancelar.
+    // Campo separado do de reagendamento para não misturar os dois fluxos.
+    private List<Long> agendamentosParaCancelarIds = new ArrayList<>();
+
     public BotContexto() {}
 
     // GETTERS
@@ -70,6 +77,7 @@ public class BotContexto {
     public Long getAgendamentoOriginalId() { return agendamentoOriginalId; }
     public Long getReagendamentoProfissionalId() { return reagendamentoProfissionalId; }
     public Integer getReagendamentoServicoDuracaoMinutos() { return reagendamentoServicoDuracaoMinutos; }
+    public List<Long> getAgendamentosParaCancelarIds() { return agendamentosParaCancelarIds; }
 
     // SETTERS
     public void setServicoIds(List<Long> servicoIds) { this.servicoIds = servicoIds; }
@@ -87,4 +95,5 @@ public class BotContexto {
     public void setAgendamentoOriginalId(Long agendamentoOriginalId) { this.agendamentoOriginalId = agendamentoOriginalId; }
     public void setReagendamentoProfissionalId(Long reagendamentoProfissionalId) { this.reagendamentoProfissionalId = reagendamentoProfissionalId; }
     public void setReagendamentoServicoDuracaoMinutos(Integer reagendamentoServicoDuracaoMinutos) { this.reagendamentoServicoDuracaoMinutos = reagendamentoServicoDuracaoMinutos; }
+    public void setAgendamentosParaCancelarIds(List<Long> agendamentosParaCancelarIds) { this.agendamentosParaCancelarIds = agendamentosParaCancelarIds; }
 }

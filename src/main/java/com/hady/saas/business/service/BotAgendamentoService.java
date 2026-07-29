@@ -139,6 +139,10 @@ public class BotAgendamentoService {
                         tratarAguardandoEscolhaAgendamento(texto, estabelecimento, conversa);
                 case ConversaWhatsApp.ESTADO_AGUARDANDO_NOVO_HORARIO ->
                         tratarAguardandoNovoHorario(texto, cliente, estabelecimento, conversa);
+                case ConversaWhatsApp.ESTADO_AGUARDANDO_MENU_PRINCIPAL ->
+                        tratarAguardandoMenuPrincipal(textoNormalizado, cliente, estabelecimento, conversa);
+                case ConversaWhatsApp.ESTADO_AGUARDANDO_ESCOLHA_CANCELAMENTO ->
+                        tratarAguardandoEscolhaCancelamento(texto, estabelecimento, conversa);
                 default -> {
                     resetar(conversa);
                     yield null;
@@ -171,11 +175,20 @@ public class BotAgendamentoService {
             return iniciarReagendamento(cliente, estabelecimento, conversa);
         }
 
+        // Item 4 (menu principal): uma saudação pura ("oi", "ola" etc., sem
+        // mais nada junto) não deve mais cair direto na lista de serviços —
+        // mostra o menu de opções (Agendar/Reagendar/Cancelar/Falar com
+        // humano) e deixa o cliente escolher. Atalhos diretos por palavra-chave
+        // ("agendar", "remarcar" etc.) continuam funcionando sem passar pelo
+        // menu, para quem já sabe o que quer.
+        if (isSaudacaoPura(textoNormalizado)) {
+            return mostrarMenuPrincipal(conversa);
+        }
+
         boolean quiseAgendar = textoNormalizado.contains("agend")
                 || textoNormalizado.contains("marcar")
                 || textoNormalizado.contains("horario")
-                || textoNormalizado.contains("hora vaga")
-                || textoNormalizado.equals("oi") || textoNormalizado.equals("ola");
+                || textoNormalizado.contains("hora vaga");
 
         if (!quiseAgendar) {
             // Item 7 (camada ELITE): fora do gatilho reconhecido, o bot não força
@@ -192,6 +205,12 @@ public class BotAgendamentoService {
             return "Oi! 👋 Se quiser marcar um horário, é só digitar *agendar* que eu te ajudo.";
         }
 
+        return iniciarFluxoDeAgendamento(estabelecimento, conversa);
+    }
+
+    // Extraído de tratarLivre para ser reaproveitado também pela opção
+    // "1 - Agendar" do menu principal (item 4).
+    private String iniciarFluxoDeAgendamento(Estabelecimento estabelecimento, ConversaWhatsApp conversa) {
         List<Servico> servicos = servicoService.listarAtivos(estabelecimento.getId());
         if (servicos.isEmpty()) {
             return "Ainda não temos serviços cadastrados por aqui — vou avisar a equipe do salão para te ajudar diretamente!";
@@ -252,6 +271,72 @@ public class BotAgendamentoService {
                 horario.getHoraAbertura() + " às " + horario.getHoraFechamento() +
                 "), mas pode deixar sua mensagem que a equipe vê assim que abrir! " +
                 "Se quiser, também posso marcar seu horário agora mesmo — é só digitar *agendar* 😊";
+    }
+
+    // ── MENU PRINCIPAL (item 4) ──────────────────────────────────────────────
+    //
+    // Antes, "oi"/"ola" caíam junto do gatilho de agendar e iam direto pra
+    // lista de serviços. Agora uma saudação pura mostra um menu curto com as
+    // 4 ações mais comuns, para orientar quem não sabe (ou esqueceu) o que o
+    // bot faz. Quem já sabe o que quer continua podendo pular o menu
+    // digitando o atalho direto ("agendar", "remarcar" etc.) a qualquer momento.
+
+    private boolean isSaudacaoPura(String textoNormalizado) {
+        return textoNormalizado.equals("oi") || textoNormalizado.equals("ola")
+                || textoNormalizado.equals("oii") || textoNormalizado.equals("oie")
+                || textoNormalizado.equals("bom dia") || textoNormalizado.equals("boa tarde")
+                || textoNormalizado.equals("boa noite") || textoNormalizado.equals("hey")
+                || textoNormalizado.equals("eae") || textoNormalizado.equals("e ai");
+    }
+
+    private String mostrarMenuPrincipal(ConversaWhatsApp conversa) {
+        resetar(conversa);
+        conversa.setEstado(ConversaWhatsApp.ESTADO_AGUARDANDO_MENU_PRINCIPAL);
+        return "Oi! 👋 Como posso te ajudar?\n\n" +
+                "1 - Agendar 📅\n" +
+                "2 - Reagendar 🔄\n" +
+                "3 - Cancelar ❌\n" +
+                "4 - Falar com um atendente 🧑\n\n" +
+                "Responda só com o número da opção.";
+    }
+
+    private String tratarAguardandoMenuPrincipal(String textoNormalizado, Cliente cliente,
+                                                 Estabelecimento estabelecimento, ConversaWhatsApp conversa) {
+        switch (textoNormalizado) {
+            case "1":
+                return iniciarFluxoDeAgendamento(estabelecimento, conversa);
+            case "2":
+                return iniciarReagendamento(cliente, estabelecimento, conversa);
+            case "3":
+                return iniciarCancelamento(cliente, estabelecimento, conversa);
+            case "4":
+                return acionarAtendimentoHumano(conversa);
+            default:
+                return "Não entendi 🤔 Responda com o número de uma das opções:\n\n" +
+                        "1 - Agendar\n2 - Reagendar\n3 - Cancelar\n4 - Falar com um atendente";
+        }
+    }
+
+    // Item 4 — opção "4 - Falar com um atendente": pausa o bot nessa conversa
+    // (mesmo mecanismo de robotPausado/pausadoAte usado quando alguém do salão
+    // responde manualmente pelo painel — ver WhatsAppRoboController) por
+    // algumas horas, para dar tempo de um humano assumir sem o bot competir
+    // com as respostas. Reaproveita a mesma janela de retorno automático (20h)
+    // usada no painel, por consistência — não é uma regra de negócio nova.
+    private static final int HORA_RETORNO_AUTOMATICO_ATENDIMENTO_HUMANO = 20;
+
+    private String acionarAtendimentoHumano(ConversaWhatsApp conversa) {
+        resetar(conversa);
+        conversa.setRobotPausado(true);
+        conversa.setPausadoAte(calcularProximoRetornoAutomatico());
+        return "Combinado! Um atendente da equipe vai te responder por aqui assim que possível 🙂\n\n" +
+                "Enquanto isso eu fico de lado para não atrapalhar a conversa — pode escrever à vontade que fica registrado para a equipe ver.";
+    }
+
+    private LocalDateTime calcularProximoRetornoAutomatico() {
+        LocalDateTime agora = LocalDateTime.now(ZONA_BRASIL);
+        LocalDateTime hoje20h = agora.toLocalDate().atTime(HORA_RETORNO_AUTOMATICO_ATENDIMENTO_HUMANO, 0);
+        return agora.isBefore(hoje20h) ? hoje20h : hoje20h.plusDays(1);
     }
 
     // ── AGUARDANDO_SERVICO ─────────────────────────────────────────────────
@@ -535,6 +620,73 @@ public class BotAgendamentoService {
         }
         sb.append("\nResponda só com o número da opção.");
         return sb.toString();
+    }
+
+    // ── CANCELAMENTO PELO MENU (item 4, opção 3) ────────────────────────────
+    //
+    // Reaproveita agendamentoService.listarFuturosAtivosDoCliente/cancelar,
+    // já testados no fluxo de lembrete — mesmo padrão do reagendamento
+    // (iniciarReagendamento), inclusive na escolha quando há mais de um
+    // agendamento futuro ativo. Diferente do reagendamento, aqui não há um
+    // segundo passo (escolher novo horário): ao identificar o agendamento,
+    // já cancela direto.
+
+    private String iniciarCancelamento(Cliente cliente, Estabelecimento estabelecimento, ConversaWhatsApp conversa) {
+        List<Agendamento> futuros = agendamentoService.listarFuturosAtivosDoCliente(cliente.getId(), estabelecimento.getId());
+
+        if (futuros.isEmpty()) {
+            resetar(conversa);
+            return "Não encontrei nenhum agendamento futuro seu por aqui para cancelar. Se quiser marcar um novo horário, digite *agendar*.";
+        }
+
+        if (futuros.size() == 1) {
+            return efetivarCancelamento(futuros.get(0), estabelecimento, conversa);
+        }
+
+        BotContexto contexto = new BotContexto();
+        contexto.setAgendamentosParaCancelarIds(futuros.stream().map(Agendamento::getId).toList());
+        salvarContexto(conversa, contexto);
+        conversa.setEstado(ConversaWhatsApp.ESTADO_AGUARDANDO_ESCOLHA_CANCELAMENTO);
+
+        StringBuilder sb = new StringBuilder("Encontrei mais de um agendamento seu. Qual deles você quer cancelar?\n\n");
+        for (int i = 0; i < futuros.size(); i++) {
+            sb.append(i + 1).append(" - ").append(resumoAgendamento(futuros.get(i))).append("\n");
+        }
+        sb.append("\nResponda só com o número da opção, ou digite *cancelar* para desistir.");
+        return sb.toString();
+    }
+
+    private String tratarAguardandoEscolhaCancelamento(String texto, Estabelecimento estabelecimento, ConversaWhatsApp conversa) {
+        BotContexto contexto = carregarContexto(conversa);
+        if (contexto == null || contexto.getAgendamentosParaCancelarIds().isEmpty()) {
+            resetar(conversa);
+            return "Perdi o fio da conversa aqui — pode digitar *cancelar* de novo, ou *agendar* para marcar um novo horário.";
+        }
+
+        Integer indice = parseIndice(texto, contexto.getAgendamentosParaCancelarIds().size());
+        if (indice == null) {
+            return "Não entendi 🤔 Responda só com o número do agendamento que apareceu na lista.";
+        }
+
+        Long agendamentoId = contexto.getAgendamentosParaCancelarIds().get(indice - 1);
+        Agendamento agendamento = agendamentoService.buscarPorId(agendamentoId, estabelecimento.getId());
+        return efetivarCancelamento(agendamento, estabelecimento, conversa);
+    }
+
+    private String efetivarCancelamento(Agendamento agendamento, Estabelecimento estabelecimento, ConversaWhatsApp conversa) {
+        String resumo = resumoAgendamento(agendamento);
+        resetar(conversa);
+        try {
+            // agendamentoService.cancelar já dispara, por conta própria, a
+            // notificação de cancelamento de sempre — resposta do bot
+            // propositalmente curta para não duplicar informação (mesmo
+            // padrão documentado no topo da classe).
+            agendamentoService.cancelar(agendamento.getId(), estabelecimento.getId());
+        } catch (Exception e) {
+            return "Não consegui cancelar: " + e.getMessage() + ".";
+        }
+        return "Prontinho, cancelei este agendamento:\n" + resumo +
+                "\n\nSe quiser marcar um novo horário, é só digitar *agendar* 😊";
     }
 
     // ── AGUARDANDO_ESCOLHA_AGENDAMENTO ──────────────────────────────────────
