@@ -175,34 +175,37 @@ public class BotAgendamentoService {
             return iniciarReagendamento(cliente, estabelecimento, conversa);
         }
 
-        // Item 4 (menu principal): uma saudação pura ("oi", "ola" etc., sem
-        // mais nada junto) não deve mais cair direto na lista de serviços —
-        // mostra o menu de opções (Agendar/Reagendar/Cancelar/Falar com
-        // humano) e deixa o cliente escolher. Atalhos diretos por palavra-chave
-        // ("agendar", "remarcar" etc.) continuam funcionando sem passar pelo
-        // menu, para quem já sabe o que quer.
-        if (isSaudacaoPura(textoNormalizado)) {
-            return mostrarMenuPrincipal(conversa);
-        }
-
         boolean quiseAgendar = textoNormalizado.contains("agend")
                 || textoNormalizado.contains("marcar")
                 || textoNormalizado.contains("horario")
                 || textoNormalizado.contains("hora vaga");
 
         if (!quiseAgendar) {
-            // Item 7 (camada ELITE): fora do gatilho reconhecido, o bot não força
-            // conversa — mas se estiver fora do horário de expediente do salão,
-            // aproveita pra já informar quando reabre (não tem ninguém pra
-            // responder ao vivo agora mesmo). Dentro do expediente, mantém a
-            // dica curta de sempre. O bot em si continua 24/7 (agenda/remarca
-            // a qualquer hora, respeitando só os horários vagos de sempre) —
-            // isto aqui é só o texto do fallback, não um bloqueio.
+            // Item 4 (menu principal) — ATUALIZADO: antes, só uma saudação pura
+            // ("oi", "ola" etc., function isSaudacaoPura) abria o menu de opções;
+            // qualquer outro texto não reconhecido caía numa mensagem fixa de
+            // fallback. Isso fazia o bot "não responder direito" pra clientes que
+            // digitavam algo diferente do esperado (erro de digitação, mensagem
+            // fora do padrão, emoji sozinho etc.).
+            //
+            // Agora: QUALQUER mensagem que chegue com a conversa em estado LIVRE e
+            // que não bata com um atalho direto reconhecido (reagendar/agendar já
+            // tratados acima) abre o mesmo menu principal (Agendar/Reagendar/
+            // Cancelar/Falar com atendente), garantindo que o cliente sempre recebe
+            // o painel e consegue seguir o funil normalmente, não importa o que
+            // tenha escrito. isSaudacaoPura() não é mais usada aqui (mantida só
+            // para não quebrar quem ainda referencia o método), pois virou
+            // redundante: toda mensagem não reconhecida já cai neste caminho.
+            //
+            // Item 7 (camada ELITE) continua valendo: fora do horário de
+            // expediente do salão, a mensagem também avisa o horário de
+            // funcionamento antes de cair no menu — dando prioridade a essa
+            // informação por ser mais específica pro momento.
             String avisoForaDoHorario = mensagemForaDoHorarioSeAplicavel(estabelecimento);
             if (avisoForaDoHorario != null) {
                 return avisoForaDoHorario;
             }
-            return "Oi! 👋 Se quiser marcar um horário, é só digitar *agendar* que eu te ajudo.";
+            return mostrarMenuPrincipal(conversa);
         }
 
         return iniciarFluxoDeAgendamento(estabelecimento, conversa);
