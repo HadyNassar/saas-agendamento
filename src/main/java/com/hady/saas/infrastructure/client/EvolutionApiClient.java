@@ -114,6 +114,59 @@ public class EvolutionApiClient {
         return null;
     }
 
+    /**
+     * Busca a apikey ESPECÍFICA da instância (não a global). Necessária porque a
+     * Evolution reenvia, no header "apikey" das chamadas de webhook, a apikey
+     * individual da instância — não a apikey global configurada em
+     * AUTHENTICATION_API_KEY. Essa apikey de instância é gerada automaticamente
+     * pela Evolution a cada criação/recriação de instância, então validar contra
+     * um valor fixo (${evolution.api.key}) quebra sempre que a instância é
+     * recriada. Buscando dinamicamente aqui, o backend sempre compara contra o
+     * valor real e atual, sem precisar de nenhuma configuração manual.
+     */
+    public String buscarApiKeyInstancia(String instanceName) {
+        try {
+            String url = baseUrl + "/instance/fetchInstances";
+            ResponseEntity<Object> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headers()), Object.class
+            );
+            Object body = response.getBody();
+            if (!(body instanceof java.util.List<?> lista)) {
+                return null;
+            }
+            for (Object item : lista) {
+                if (instanceName.equals(extrairNomeInstancia(item))) {
+                    return extrairApiKeyInstancia(item);
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("[EvolutionAPI] Falha ao buscar apikey da instancia '{}': {}", instanceName, e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extrairApiKeyInstancia(Object item) {
+        if (!(item instanceof Map)) return null;
+        Map<String, Object> map = (Map<String, Object>) item;
+
+        if (map.get("apikey") instanceof String key) return key;
+
+        Object instanceObj = map.get("instance");
+        if (instanceObj instanceof Map) {
+            Map<String, Object> instanceMap = (Map<String, Object>) instanceObj;
+            if (instanceMap.get("apikey") instanceof String key) return key;
+        }
+
+        Object hashObj = map.get("hash");
+        if (hashObj instanceof Map) {
+            Map<String, Object> hashMap = (Map<String, Object>) hashObj;
+            if (hashMap.get("apikey") instanceof String key) return key;
+        }
+        return null;
+    }
+
     public boolean verificarConexao(String instanceName) {
         try {
             String url = baseUrl + "/instance/connectionState/" + instanceName;

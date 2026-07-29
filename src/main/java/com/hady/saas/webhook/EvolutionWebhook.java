@@ -64,14 +64,30 @@ public class EvolutionWebhook {
             @RequestHeader(value = "apikey", required = false) String apikeyHeader,
             @RequestBody Map<String, Object> body) {
 
-        // ── Validação da origem: a Evolution reenvia a mesma apikey da instância ──
+        // ── Validação da origem ──────────────────────────────────────────
+        // A Evolution reenvia, no header "apikey", a apikey ESPECÍFICA da
+        // instância — não a apikey global (AUTHENTICATION_API_KEY). Essa
+        // apikey de instância muda toda vez que a instância é recriada, então
+        // não dá pra comparar só contra um valor fixo salvo em configuração.
+        // Por isso: (1) aceitamos a apikey global como válida (compatibilidade
+        // e simplicidade quando ela bate), e (2) se não bater, buscamos na
+        // Evolution a apikey atual da instância informada no payload e
+        // comparamos contra ela antes de rejeitar.
         if (apiKeyEsperada == null || apiKeyEsperada.isBlank()) {
             log.error("[Webhook Evolution] evolution.api.key não configurada — endpoint BLOQUEADO.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (apikeyHeader == null || !apikeyHeader.equals(apiKeyEsperada)) {
-            log.warn("[Webhook Evolution] apikey inválida ou ausente no header.");
+        if (apikeyHeader == null || apikeyHeader.isBlank()) {
+            log.warn("[Webhook Evolution] apikey ausente no header.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!apikeyHeader.equals(apiKeyEsperada)) {
+            String instanceNameParaValidar = String.valueOf(body.get("instance"));
+            String apikeyInstancia = evolutionApiClient.buscarApiKeyInstancia(instanceNameParaValidar);
+            if (apikeyInstancia == null || !apikeyHeader.equals(apikeyInstancia)) {
+                log.warn("[Webhook Evolution] apikey inválida no header (não bate com global nem com a da instância '{}').", instanceNameParaValidar);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
         }
 
         try {
