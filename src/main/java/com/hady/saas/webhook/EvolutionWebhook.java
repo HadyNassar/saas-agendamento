@@ -103,7 +103,25 @@ public class EvolutionWebhook {
             if (fromMe) return ResponseEntity.ok().build(); // ignora eco de mensagem enviada pelo salão
 
             String remoteJid = key != null ? String.valueOf(key.get("remoteJid")) : null;
-            String telefone = extrairTelefone(remoteJid);
+            // Números Android recentes chegam com remoteJid no formato "@lid" (Linked
+            // ID interno do WhatsApp), que NÃO é o telefone real — é um identificador
+            // opaco. Nesses casos o telefone de verdade vem em "senderPn" (sender
+            // phone number), disponível dentro de key ou, em algumas versões, no nível
+            // raiz de data. Sem esse fallback, o código tentava extrair dígitos do
+            // próprio @lid e gerava um "telefone" de tamanho errado, que a Evolution
+            // rejeitava ao tentar enviar (400 Bad Request, "exists": false).
+            String telefone;
+            if (remoteJid != null && remoteJid.contains("@lid")) {
+                String senderPn = key != null && key.get("senderPn") instanceof String s ? s : null;
+                if (senderPn == null && data.get("senderPn") instanceof String s) senderPn = s;
+                telefone = extrairTelefone(senderPn);
+                if (telefone == null) {
+                    log.warn("[Webhook Evolution] remoteJid veio como @lid ('{}') e senderPn não disponível — mensagem ignorada.", remoteJid);
+                    return ResponseEntity.ok().build();
+                }
+            } else {
+                telefone = extrairTelefone(remoteJid);
+            }
             String textoRecebido = extrairTexto(data);
 
             if (telefone == null || textoRecebido == null) {
@@ -212,9 +230,11 @@ public class EvolutionWebhook {
         return clienteRepository.save(cliente);
     }
 
-    // remoteJid vem como "5567999999999@s.whatsapp.net" (ou @g.us para grupo, que ignoramos)
+    // remoteJid vem como "5567999999999@s.whatsapp.net" (ou @g.us para grupo, que
+    // ignoramos, ou @lid para o Linked ID interno do WhatsApp, que também não é o
+    // telefone real e é tratado separadamente antes de chegar aqui).
     private String extrairTelefone(String remoteJid) {
-        if (remoteJid == null || remoteJid.contains("@g.us")) return null;
+        if (remoteJid == null || remoteJid.contains("@g.us") || remoteJid.contains("@lid")) return null;
         String numero = remoteJid.replaceAll("[^0-9]", "");
         return numero.isBlank() ? null : numero;
     }
