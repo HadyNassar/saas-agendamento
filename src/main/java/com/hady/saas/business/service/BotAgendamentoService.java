@@ -67,6 +67,14 @@ public class BotAgendamentoService {
     // não é regra de negócio validada — ajustar se o dono do produto preferir outro número.
     private static final int MAX_HORARIOS_EXIBIDOS = 12;
 
+    // Se o cliente parar no meio de um fluxo (ex: travou em "AGUARDANDO_SERVICO")
+    // e só voltar a escrever depois de muito tempo, não faz sentido continuar de
+    // onde parou — melhor resetar pra LIVRE e deixar o menu principal decidir de
+    // novo. 12h escolhido para cobrir "sumiu de um dia pro outro" sem incomodar
+    // quem só demorou algumas horas pra responder no mesmo dia. Não é regra de
+    // negócio validada — ajustar se o dono do produto preferir outro valor.
+    private static final long HORAS_INATIVIDADE_PARA_RESETAR_FLUXO = 12;
+
     private final ServicoService servicoService;
     private final ProfissionalService profissionalService;
     private final ProfissionalRepository profissionalRepository;
@@ -94,10 +102,27 @@ public class BotAgendamentoService {
      */
     @Transactional
     public String processarMensagem(Estabelecimento estabelecimento, Cliente cliente,
-                                    ConversaWhatsApp conversa, String textoRecebido) {
+                                    ConversaWhatsApp conversa, String textoRecebido,
+                                    LocalDateTime ultimaMensagemAnterior) {
 
         String texto = textoRecebido == null ? "" : textoRecebido.trim();
         String textoNormalizado = normalizar(texto);
+
+        // Reseta o fluxo se o cliente sumiu por mais de
+        // HORAS_INATIVIDADE_PARA_RESETAR_FLUXO no meio de uma conversa em
+        // andamento (qualquer estado diferente de LIVRE). Não reseta se já está
+        // em LIVRE (não há nada a resetar) nem se é a primeira mensagem dessa
+        // conversa (ultimaMensagemAnterior == null). Feito ANTES de qualquer outra
+        // regra, inclusive do estado de lembrete (item 2) — se o cliente demorou
+        // 12h+ pra responder um lembrete, também não faz sentido tratar a resposta
+        // atual como confirmação daquele lembrete específico.
+        if (ultimaMensagemAnterior != null
+                && !ConversaWhatsApp.ESTADO_LIVRE.equals(conversa.getEstado())
+                && ultimaMensagemAnterior.plusHours(HORAS_INATIVIDADE_PARA_RESETAR_FLUXO).isBefore(LocalDateTime.now())) {
+            log.info("[Bot Agendamento] Conversa id={} inativa há mais de {}h — resetando fluxo (estado anterior: {}).",
+                    conversa.getId(), HORAS_INATIVIDADE_PARA_RESETAR_FLUXO, conversa.getEstado());
+            resetar(conversa);
+        }
 
         // Item 2 — PRIORIDADE MÁXIMA: se o cliente está respondendo a um lembrete
         // de 24h/2h, isso não pode ser interpretado como o atalho global de

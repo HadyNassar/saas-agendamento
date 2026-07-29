@@ -157,6 +157,11 @@ public class EvolutionWebhook {
 
             // Checagem on-the-fly da expiração da pausa (sem job em background)
             conversa.limparPausaSeExpirada();
+
+            // Guarda o horário da mensagem ANTERIOR antes de sobrescrever, para o
+            // bot conseguir detectar inatividade (fluxo parado no meio) — ver
+            // BotAgendamentoService.resetarSeInativoDemais().
+            LocalDateTime ultimaMensagemAnterior = conversa.getUltimaMensagemEm();
             conversa.setUltimaMensagemEm(LocalDateTime.now());
             conversa.setUltimaMensagemPreview(
                     textoRecebido.length() > 200 ? textoRecebido.substring(0, 200) : textoRecebido);
@@ -185,7 +190,7 @@ public class EvolutionWebhook {
             if (podeResponderAutomaticamente) {
                 try {
                     String resposta = botAgendamentoService.processarMensagem(
-                            estabelecimento, cliente, conversa, textoRecebido);
+                            estabelecimento, cliente, conversa, textoRecebido, ultimaMensagemAnterior);
 
                     if (resposta != null && !resposta.isBlank()) {
                         evolutionApiClient.enviarMensagem(instanceName, telefone, resposta);
