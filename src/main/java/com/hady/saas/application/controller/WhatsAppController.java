@@ -56,6 +56,14 @@ public class WhatsAppController {
                 est.setEvolutionInstanceName(instanceName);
                 est.setWhatsappConectado(false);
                 estabelecimentoRepository.save(est);
+            } else {
+                // Instância já existia: garante que o webhook continua
+                // configurado. Já vimos em produção a instância perder essa
+                // configuração (ex.: reinício/recriação interna do Evolution)
+                // sem que nada no nosso lado soubesse — isso fazia o bot parar
+                // de responder silenciosamente, sem erro algum. Reforçar aqui
+                // é barato e evita esse silêncio.
+                evolutionApiClient.configurarWebhook(instanceName);
             }
             String qrCode = evolutionApiClient.buscarQrCode(instanceName);
             return ResponseEntity.ok(Map.of("qrcode", qrCode));

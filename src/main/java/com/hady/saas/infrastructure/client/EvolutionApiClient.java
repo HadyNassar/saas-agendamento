@@ -22,6 +22,13 @@ public class EvolutionApiClient {
     @Value("${evolution.api.key}")
     private String apiKey;
 
+    // URL pública desta própria API/backend (ex.: https://api.oagendara.com.br),
+    // usada para montar automaticamente a URL de webhook ao criar uma instância.
+    // ATENÇÃO: não usar "app.base-url" — essa property já existe no projeto e
+    // aponta para o domínio do FRONTEND (oagendara.com.br), não para esta API.
+    @Value("${app.backend-url}")
+    private String backendUrl;
+
     public EvolutionApiClient() {
         this.restTemplate = new RestTemplate();
     }
@@ -41,6 +48,38 @@ public class EvolutionApiClient {
                 "integration", "WHATSAPP-BAILEYS"
         );
         restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers()), Map.class);
+
+        // Configura o webhook imediatamente após criar a instância. Isso é
+        // crítico: sem isso, toda vez que a instância é recriada (o que já
+        // aconteceu mais de uma vez em produção — reinício, reconexão, etc.),
+        // a configuração de webhook se perde e o bot conversacional para de
+        // responder silenciosamente, sem nenhum erro visível no backend
+        // (porque o evento nem chega até ele).
+        configurarWebhook(instanceName);
+    }
+
+    /**
+     * Configura (ou reconfigura) o webhook da instância para apontar para o
+     * endpoint do backend, usando o token de autenticação no path da URL
+     * (ver EvolutionWebhook). Chamado automaticamente ao criar instância, mas
+     * também pode ser chamado manualmente para corrigir uma instância que
+     * ficou sem webhook por qualquer motivo.
+     */
+    public void configurarWebhook(String instanceName) {
+        try {
+            String url = baseUrl + "/webhook/set/" + instanceName;
+            String webhookUrl = backendUrl + "/webhook/evolution/" + apiKey;
+            Map<String, Object> body = Map.of(
+                    "url", webhookUrl,
+                    "enabled", true,
+                    "webhook_by_events", false,
+                    "events", java.util.List.of("MESSAGES_UPSERT")
+            );
+            restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers()), Map.class);
+            log.info("[EvolutionAPI] Webhook configurado para instância '{}'.", instanceName);
+        } catch (Exception e) {
+            log.error("[EvolutionAPI] Falha ao configurar webhook da instância '{}': {}", instanceName, e.getMessage(), e);
+        }
     }
 
     public String buscarQrCode(String instanceName) {
