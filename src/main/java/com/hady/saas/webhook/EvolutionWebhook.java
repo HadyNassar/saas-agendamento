@@ -59,35 +59,27 @@ public class EvolutionWebhook {
         this.evolutionApiClient = evolutionApiClient;
     }
 
-    @PostMapping
+    @PostMapping("/{token}")
     public ResponseEntity<Void> receber(
-            @RequestHeader(value = "apikey", required = false) String apikeyHeader,
+            @PathVariable String token,
             @RequestBody Map<String, Object> body) {
 
-        // ── Validação da origem ──────────────────────────────────────────
-        // A Evolution reenvia, no header "apikey", a apikey ESPECÍFICA da
-        // instância — não a apikey global (AUTHENTICATION_API_KEY). Essa
-        // apikey de instância muda toda vez que a instância é recriada, então
-        // não dá pra comparar só contra um valor fixo salvo em configuração.
-        // Por isso: (1) aceitamos a apikey global como válida (compatibilidade
-        // e simplicidade quando ela bate), e (2) se não bater, buscamos na
-        // Evolution a apikey atual da instância informada no payload e
-        // comparamos contra ela antes de rejeitar.
+        // ── Validação da origem via token na URL ─────────────────────────
+        // Trocamos a validação por header "apikey" para um token no path da
+        // URL. Motivo: constatamos em produção que a Evolution (nas versões/
+        // imagens mais recentes, ex. v1.8.6) nem sempre reenvia o header
+        // "apikey" nas chamadas de webhook — o header chega ausente mesmo com
+        // o webhook configurado corretamente. Um token no path é confiável
+        // independente desse comportamento, pois não depende de a Evolution
+        // mandar nenhum header especial: só de ela chamar a URL exata que
+        // configuramos (que inclui o token secreto).
         if (apiKeyEsperada == null || apiKeyEsperada.isBlank()) {
             log.error("[Webhook Evolution] evolution.api.key não configurada — endpoint BLOQUEADO.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (apikeyHeader == null || apikeyHeader.isBlank()) {
-            log.warn("[Webhook Evolution] apikey ausente no header.");
+        if (!apiKeyEsperada.equals(token)) {
+            log.warn("[Webhook Evolution] token inválido na URL.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        if (!apikeyHeader.equals(apiKeyEsperada)) {
-            String instanceNameParaValidar = String.valueOf(body.get("instance"));
-            String apikeyInstancia = evolutionApiClient.buscarApiKeyInstancia(instanceNameParaValidar);
-            if (apikeyInstancia == null || !apikeyHeader.equals(apikeyInstancia)) {
-                log.warn("[Webhook Evolution] apikey inválida no header (não bate com global nem com a da instância '{}').", instanceNameParaValidar);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
         }
 
         try {
