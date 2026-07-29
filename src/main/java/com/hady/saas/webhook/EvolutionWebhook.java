@@ -130,6 +130,13 @@ public class EvolutionWebhook {
                         return nova;
                     });
 
+            // Quando a conversa é nova (cliente mandando mensagem pela 1ª vez), ela
+            // ainda não tem ID (instância "transient" do Hibernate). Precisamos
+            // persistir AGORA, antes de qualquer WhatsAppMensagem referenciá-la —
+            // caso contrário o Hibernate lança TransientObjectException ao tentar
+            // salvar uma mensagem que aponta para uma conversa ainda não salva.
+            conversa = conversaRepository.save(conversa);
+
             // Checagem on-the-fly da expiração da pausa (sem job em background)
             conversa.limparPausaSeExpirada();
             conversa.setUltimaMensagemEm(LocalDateTime.now());
