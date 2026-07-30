@@ -121,7 +121,16 @@ public class CampanhaEnvioProcessorJob {
         registro.setEstabelecimento(estabelecimento);
         registro.setCliente(item.getCliente());
         registro.setTelefoneDestino(item.getTelefoneDestino());
-        registro.setMensagem(campanha.getMensagem());
+        // Usa a mensagem FINAL do item (já com saudação personalizada e o
+        // link do cupom, montada em CampanhaEnvioService.criarRascunho),
+        // nunca campanha.getMensagem() puro — aquele é só o texto-base
+        // digitado pelo dono, sem essas partes. Fallback pro texto-base só
+        // por segurança, caso um item antigo tenha ficado sem mensagemFinal
+        // preenchida (não deveria acontecer em itens novos).
+        String mensagemParaEnviar = item.getMensagemFinal() != null
+                ? item.getMensagemFinal()
+                : campanha.getMensagem();
+        registro.setMensagem(mensagemParaEnviar);
         registro.setTipo("CAMPANHA");
         registro.setDirecao("ENVIADA");
 
@@ -132,7 +141,7 @@ public class CampanhaEnvioProcessorJob {
             }
 
             evolutionApiClient.enviarMensagem(
-                    estabelecimento.getEvolutionInstanceName(), item.getTelefoneDestino(), campanha.getMensagem());
+                    estabelecimento.getEvolutionInstanceName(), item.getTelefoneDestino(), mensagemParaEnviar);
 
             registro.setStatus("ENVIADO");
             registro.setEnviadoEm(LocalDateTime.now());
