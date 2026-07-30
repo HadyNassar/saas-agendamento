@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -22,6 +23,12 @@ import java.util.List;
 public class CupomEstabelecimentoService {
 
     private static final List<String> TIPOS_VALIDOS = List.of("PERCENTUAL", "VALOR_FIXO");
+
+    // Validade máxima permitida para um cupom criado pelo dono do
+    // estabelecimento, contada a partir de hoje. Regra de produto pedida
+    // explicitamente (não é limite técnico) — cupons de campanha são
+    // pensados pra criar urgência de curto prazo, não descontos permanentes.
+    private static final int VALIDADE_MAXIMA_DIAS = 7;
 
     private final CupomEstabelecimentoRepository cupomRepository;
     private final AgendamentoRepository agendamentoRepository;
@@ -55,6 +62,18 @@ public class CupomEstabelecimentoService {
         }
         if (limiteUsos != null && limiteUsos <= 0) {
             throw new CupomEstabelecimentoException("Campo 'limiteUsos', quando informado, deve ser maior que zero.");
+        }
+        if (validadeData != null) {
+            LocalDate hoje = LocalDate.now();
+            if (validadeData.isBefore(hoje)) {
+                throw new CupomEstabelecimentoException("Campo 'validadeData' não pode estar no passado.");
+            }
+            long diasAteExpirar = ChronoUnit.DAYS.between(hoje, validadeData);
+            if (diasAteExpirar > VALIDADE_MAXIMA_DIAS) {
+                throw new CupomEstabelecimentoException(
+                        "A validade do cupom não pode ultrapassar " + VALIDADE_MAXIMA_DIAS
+                        + " dias a partir de hoje.");
+            }
         }
 
         String codigoNormalizado = codigo.trim().toUpperCase();

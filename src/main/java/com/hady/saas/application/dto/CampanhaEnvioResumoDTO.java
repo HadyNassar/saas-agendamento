@@ -17,6 +17,7 @@ public class CampanhaEnvioResumoDTO {
     private Long id;
     private EstagioCliente filtroEstagio;
     private String mensagem;
+    private boolean usouTemplate;
     private String origem;
     private String status;
     private int totalDestinatarios;
@@ -31,6 +32,7 @@ public class CampanhaEnvioResumoDTO {
         this.id = campanha.getId();
         this.filtroEstagio = campanha.getFiltroEstagio();
         this.mensagem = campanha.getMensagem();
+        this.usouTemplate = campanha.isUsouTemplate();
         this.origem = campanha.getOrigem();
         this.status = campanha.getStatus();
         this.totalDestinatarios = campanha.getTotalDestinatarios();
@@ -43,6 +45,7 @@ public class CampanhaEnvioResumoDTO {
     public Long getId()                         { return id; }
     public EstagioCliente getFiltroEstagio()     { return filtroEstagio; }
     public String getMensagem()                  { return mensagem; }
+    public boolean isUsouTemplate()               { return usouTemplate; }
     public String getOrigem()                    { return origem; }
     public String getStatus()                    { return status; }
     public int getTotalDestinatarios()           { return totalDestinatarios; }
@@ -54,6 +57,7 @@ public class CampanhaEnvioResumoDTO {
     public void setId(Long id)                                     { this.id = id; }
     public void setFiltroEstagio(EstagioCliente filtroEstagio)     { this.filtroEstagio = filtroEstagio; }
     public void setMensagem(String mensagem)                       { this.mensagem = mensagem; }
+    public void setUsouTemplate(boolean usouTemplate)               { this.usouTemplate = usouTemplate; }
     public void setOrigem(String origem)                           { this.origem = origem; }
     public void setStatus(String status)                           { this.status = status; }
     public void setTotalDestinatarios(int totalDestinatarios)      { this.totalDestinatarios = totalDestinatarios; }

@@ -12,32 +12,34 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
  * Regra de negócio da campanha de disparo em massa MANUAL (seção 5-B do
  * documento — o dono do estabelecimento dispara para um segmento de
- * clientes). Reaproveita 100% a fundação técnica que já existia
- * (CampanhaEnvio / CampanhaEnvioItem / CampanhaEnvioProcessorJob) — este
- * service é só quem finalmente cria e alimenta essa fila.
+ * clientes). Reaproveita a fundação técnica que já existia (CampanhaEnvio /
+ * CampanhaEnvioItem / CampanhaEnvioProcessorJob).
  *
- * Ciclo de vida da campanha (decisão de design deste service, para atender
- * ao pedido de exigir confirmação explícita do dono antes de qualquer
- * disparo — não é regra de negócio previamente validada com o dono do
- * produto, é a forma que pareceu mais segura de implementar o requisito):
+ * Ciclo de vida da campanha:
  *
  *   RASCUNHO -> (dono revisa e confirma) -> CRIADA -> (job processa em
  *   lotes) -> EM_ANDAMENTO -> CONCLUIDA / CONCLUIDA_COM_ERROS
  *                  \-> (dono desiste antes de confirmar) -> CANCELADA
  *
- * O pulo do gato pra garantir que nada é disparado sem confirmação: os
- * CampanhaEnvioItem de um rascunho são criados com status RASCUNHO (não
- * PENDENTE). O CampanhaEnvioProcessorJob só enxerga itens com status
- * PENDENTE — ou seja, uma campanha em rascunho é estruturalmente invisível
- * pro job, mesmo que ele rode antes da confirmação. Confirmar a campanha é
- * a única ação que promove os itens de RASCUNHO para PENDENTE (em massa,
- * numa única query), e é feito na mesma transação que muda o status do
- * cabeçalho — não existe estado intermediário onde só um dos dois mudou.
+ * Os itens de um rascunho ficam com status RASCUNHO (não PENDENTE) — o
+ * CampanhaEnvioProcessorJob só enxerga PENDENTE, então uma campanha em
+ * rascunho é estruturalmente invisível pro job até a confirmação.
+ *
+ * Mitigações anti-banimento adicionadas nesta versão:
+ *   1) Intervalo mínimo configurável entre campanhas
+ *      (Estabelecimento.intervaloMinimoCampanhaDias), verificado na
+ *      CONFIRMAÇÃO — não trava o dono de rascunhar/revisar antes da hora.
+ *   2) Itens de uma mesma campanha são espalhados no tempo via
+ *      agendadoPara, em lotes, em vez de todos ficarem PENDENTE ao mesmo
+ *      tempo.
+ *   3) Variação leve de saudação entre lotes, pra reduzir o padrão de
+ *      "mensagem idêntica em massa".
  */
 @Service
 public class CampanhaEnvioService {
@@ -58,6 +60,23 @@ public class CampanhaEnvioService {
         public CampanhaEnvioException(String mensagem) { super(mensagem); }
     }
 
+    // Quantos destinatários compartilham o mesmo agendadoPara/variação de
+    // saudação, dentro de uma mesma campanha.
+    private static final int TAMANHO_LOTE_DISTRIBUICAO = 30;
+
+    // Intervalo entre um lote e o próximo, dentro da MESMA campanha.
+    private static final long MINUTOS_ENTRE_LOTES = 12;
+
+    // Pequenas variações de abertura, alternadas por lote — escolha de
+    // produto, não regra oficial da Meta/WhatsApp. O texto livre e o
+    // template continuam os mesmos; só a saudação de abertura muda.
+    private static final List<String> VARIACOES_SAUDACAO = List.of(
+            "Olá",
+            "Oi",
+            "Olá, tudo bem?",
+            "Oi, tudo bem?"
+    );
+
     // ── Criação do rascunho ─────────────────────────────────────────────────
 
     @Transactional
@@ -69,31 +88,58 @@ public class CampanhaEnvioService {
             throw new CampanhaEnvioException("Campo 'mensagem' é obrigatório.");
         }
 
-        // Clientes bloqueados nunca entram numa campanha, independente do
-        // estágio em que estejam — evita reabrir contato com quem o dono do
-        // salão explicitamente bloqueou.
-        List<Cliente> destinatarios = clienteRepository
-                .findByEstabelecimentoIdAndEstagioAtual(estabelecimento.getId(), filtroEstagio)
-                .stream()
-                .filter(c -> !c.isBloqueado())
-                .toList();
+        List<Cliente> destinatarios;
+        if (filtroEstagio == EstagioCliente.TODOS) {
+            // Ignora estagioAtual completamente — pega todo cliente
+            // cadastrado no estabelecimento, exceto bloqueados.
+            destinatarios = clienteRepository.findByEstabelecimentoIdAndBloqueadoFalse(estabelecimento.getId());
+        } else {
+            // ATENÇÃO (comportamento pré-existente, não uma regra nova):
+            // este filtro usa Cliente.estagioAtual, valor PERSISTIDO que só é
+            // recalculado quando um agendamento do cliente é concluído (ver
+            // ClienteSegmentacaoService). Cliente cadastrado manualmente ou
+            // sem atendimento concluído tem estagioAtual = null e por isso
+            // não aparece em NENHUM segmento (nem em NOVO) até que isso
+            // aconteça pelo menos uma vez. Use o filtro TODOS pra alcançar
+            // esses clientes.
+            destinatarios = clienteRepository
+                    .findByEstabelecimentoIdAndEstagioAtual(estabelecimento.getId(), filtroEstagio)
+                    .stream()
+                    .filter(c -> !c.isBloqueado())
+                    .toList();
+        }
 
         if (destinatarios.isEmpty()) {
-            throw new CampanhaEnvioException(
-                    "Nenhum cliente encontrado para o segmento '" + filtroEstagio + "'. Nenhum rascunho foi criado.");
+            String detalhe = (filtroEstagio == EstagioCliente.TODOS)
+                    ? "Nenhum cliente cadastrado (ou todos estão bloqueados)."
+                    : "Nenhum cliente encontrado para o segmento '" + filtroEstagio + "'. Isso pode acontecer porque "
+                      + "o estágio do cliente só é calculado quando um atendimento dele é concluído — clientes "
+                      + "cadastrados manualmente e sem histórico ainda não têm estágio definido. Use o filtro "
+                      + "'TODOS' pra alcançar a base inteira, independente do estágio.";
+            throw new CampanhaEnvioException(detalhe + " Nenhum rascunho foi criado.");
         }
+
+        String templateEstabelecimento = estabelecimento.getTemplateMensagemCampanha();
+        boolean usaTemplate = templateEstabelecimento != null && !templateEstabelecimento.isBlank();
 
         CampanhaEnvio campanha = new CampanhaEnvio();
         campanha.setEstabelecimento(estabelecimento);
         campanha.setFiltroEstagio(filtroEstagio);
         campanha.setMensagem(mensagem);
+        campanha.setUsouTemplate(usaTemplate);
         campanha.setOrigem("MANUAL");
         campanha.setStatus("RASCUNHO");
         campanha.setTotalDestinatarios(destinatarios.size());
         campanha = campanhaRepository.save(campanha);
 
-        for (Cliente cliente : destinatarios) {
+        for (int i = 0; i < destinatarios.size(); i++) {
+            Cliente cliente = destinatarios.get(i);
+            int indiceLote = i / TAMANHO_LOTE_DISTRIBUICAO;
+            String saudacao = VARIACOES_SAUDACAO.get(indiceLote % VARIACOES_SAUDACAO.size());
+            String mensagemFinal = montarMensagemFinal(estabelecimento, cliente, mensagem, saudacao, usaTemplate);
+
             CampanhaEnvioItem item = new CampanhaEnvioItem(campanha, cliente, cliente.getTelefone());
+            item.setMensagemFinal(mensagemFinal);
             item.setStatus("RASCUNHO");
             itemRepository.save(item);
         }
@@ -101,7 +147,35 @@ public class CampanhaEnvioService {
         return campanha;
     }
 
-    // ── Confirmação (dispara de verdade, na prática libera pro job) ────────
+    private String montarMensagemFinal(Estabelecimento estabelecimento, Cliente cliente,
+                                       String textoLivre, String saudacao, boolean usaTemplate) {
+        String primeiroNome = primeiroNome(cliente.getNome());
+        String corpo = saudacao + (primeiroNome != null ? ", " + primeiroNome + "!" : "!") + "\n\n" + textoLivre;
+
+        if (!usaTemplate) {
+            return corpo;
+        }
+
+        String template = estabelecimento.getTemplateMensagemCampanha();
+        String resultado = template
+                .replace("{{mensagem}}", corpo)
+                .replace("{{nome_cliente}}", primeiroNome != null ? primeiroNome : "")
+                .replace("{{nome_estabelecimento}}", estabelecimento.getNome() != null ? estabelecimento.getNome() : "");
+
+        if (!template.contains("{{mensagem}}")) {
+            resultado = resultado + "\n\n" + corpo;
+        }
+        return resultado;
+    }
+
+    private String primeiroNome(String nomeCompleto) {
+        if (nomeCompleto == null || nomeCompleto.isBlank()) return null;
+        String trim = nomeCompleto.trim();
+        int espaco = trim.indexOf(' ');
+        return espaco > 0 ? trim.substring(0, espaco) : trim;
+    }
+
+    // ── Confirmação (dispara de verdade, libera pro job) ────────────────────
 
     @Transactional
     public CampanhaEnvio confirmar(Estabelecimento estabelecimento, Long campanhaId) {
@@ -116,12 +190,36 @@ public class CampanhaEnvioService {
             throw new CampanhaEnvioException("WhatsApp não está conectado para este estabelecimento.");
         }
 
-        int promovidos = itemRepository.confirmarItensDaCampanha(campanha.getId());
-        if (promovidos == 0) {
-            // Não deveria acontecer (campanha em RASCUNHO sempre tem itens em
-            // RASCUNHO), mas evita deixar uma campanha "CRIADA" sem nenhum
-            // item pendente, o que ficaria presa em EM_ANDAMENTO pra sempre.
+        // Anti-banimento: intervalo mínimo configurável entre campanhas.
+        campanhaRepository.buscarUltimaConfirmada(estabelecimento.getId()).ifPresent(ultima -> {
+            long diasDesdeUltima = ChronoUnit.DAYS.between(ultima.getCriadoEm(), LocalDateTime.now());
+            int minimoExigido = Math.max(1, estabelecimento.getIntervaloMinimoCampanhaDias());
+            if (diasDesdeUltima < minimoExigido) {
+                long faltam = minimoExigido - diasDesdeUltima;
+                throw new CampanhaEnvioException(
+                        "Para reduzir o risco de bloqueio do WhatsApp, é preciso esperar pelo menos "
+                        + minimoExigido + " dia(s) entre campanhas. Faltam " + faltam
+                        + " dia(s) para poder confirmar uma nova campanha.");
+            }
+        });
+
+        List<CampanhaEnvioItem> itensRascunho =
+                itemRepository.findByCampanhaIdAndStatusOrderByCriadoEmAsc(campanha.getId(), "RASCUNHO");
+
+        if (itensRascunho.isEmpty()) {
             throw new CampanhaEnvioException("Esta campanha não tem destinatários pendentes de confirmação.");
+        }
+
+        // Espalha o horário de envio em lotes (anti-banimento): dentro de
+        // cada lote os itens ficam PENDENTE desde já; o campo agendadoPara é
+        // o que faz o job só pegá-los no horário correto.
+        LocalDateTime agora = LocalDateTime.now();
+        for (int i = 0; i < itensRascunho.size(); i++) {
+            int indiceLote = i / TAMANHO_LOTE_DISTRIBUICAO;
+            CampanhaEnvioItem item = itensRascunho.get(i);
+            item.setAgendadoPara(agora.plusMinutes(indiceLote * MINUTOS_ENTRE_LOTES));
+            item.setStatus("PENDENTE");
+            itemRepository.save(item);
         }
 
         campanha.setStatus("CRIADA");

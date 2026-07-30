@@ -25,4 +25,19 @@ public interface CampanhaEnvioRepository extends JpaRepository<CampanhaEnvio, Lo
         ORDER BY c.criadoEm ASC
     """)
     List<CampanhaEnvio> buscarPendentesDeProcessamento();
+
+    // Usado para impor o intervalo mínimo entre campanhas (anti-banimento):
+    // busca a campanha CONFIRMADA mais recente do estabelecimento (qualquer
+    // status exceto RASCUNHO/CANCELADA, já que essas nunca chegaram a
+    // disparar nada de verdade). Considera o momento da CONFIRMAÇÃO, não da
+    // criação do rascunho — por isso ordena por criadoEm da campanha
+    // CRIADA/EM_ANDAMENTO/CONCLUIDA/CONCLUIDA_COM_ERROS mais recente.
+    @Query("""
+        SELECT c FROM CampanhaEnvio c
+        WHERE c.estabelecimento.id = :estabelecimentoId
+          AND c.status NOT IN ('RASCUNHO', 'CANCELADA')
+        ORDER BY c.criadoEm DESC
+        LIMIT 1
+    """)
+    Optional<CampanhaEnvio> buscarUltimaConfirmada(@Param("estabelecimentoId") Long estabelecimentoId);
 }

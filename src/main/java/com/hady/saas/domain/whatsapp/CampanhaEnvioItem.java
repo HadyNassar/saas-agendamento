@@ -35,6 +35,22 @@ public class CampanhaEnvioItem {
     @Column(name = "telefone_destino", nullable = false, length = 20)
     private String telefoneDestino;
 
+    // Mensagem final já montada para ESTE destinatário (template + texto
+    // livre interpolado com o nome do cliente + variação leve de redação
+    // entre lotes, ver CampanhaEnvioService). Se null, o job usa
+    // campanha.getMensagem() como fallback (compatibilidade com itens
+    // antigos criados antes desta coluna existir).
+    @Column(name = "mensagem_final", columnDefinition = "TEXT")
+    private String mensagemFinal;
+
+    // Horário a partir do qual este item pode ser pego pelo
+    // CampanhaEnvioProcessorJob. Usado para espalhar o envio de uma campanha
+    // grande ao longo de várias horas/lotes em vez de mandar tudo de uma vez
+    // (mitigação de banimento por rajada). Null = pode processar assim que
+    // status virar PENDENTE (comportamento antigo).
+    @Column(name = "agendado_para")
+    private LocalDateTime agendadoPara;
+
     @Column(nullable = false, length = 20)
     private String status = "PENDENTE";
 
@@ -59,6 +75,8 @@ public class CampanhaEnvioItem {
     public CampanhaEnvio getCampanha()           { return campanha; }
     public Cliente getCliente()                  { return cliente; }
     public String getTelefoneDestino()           { return telefoneDestino; }
+    public String getMensagemFinal()             { return mensagemFinal; }
+    public LocalDateTime getAgendadoPara()        { return agendadoPara; }
     public String getStatus()                    { return status; }
     public String getErroDetalhe()               { return erroDetalhe; }
     public LocalDateTime getProcessadoEm()       { return processadoEm; }
@@ -68,6 +86,8 @@ public class CampanhaEnvioItem {
     public void setCampanha(CampanhaEnvio campanha)            { this.campanha = campanha; }
     public void setCliente(Cliente cliente)                    { this.cliente = cliente; }
     public void setTelefoneDestino(String telefoneDestino)     { this.telefoneDestino = telefoneDestino; }
+    public void setMensagemFinal(String mensagemFinal)         { this.mensagemFinal = mensagemFinal; }
+    public void setAgendadoPara(LocalDateTime agendadoPara)    { this.agendadoPara = agendadoPara; }
     public void setStatus(String status)                       { this.status = status; }
     public void setErroDetalhe(String erroDetalhe)             { this.erroDetalhe = erroDetalhe; }
     public void setProcessadoEm(LocalDateTime processadoEm)    { this.processadoEm = processadoEm; }

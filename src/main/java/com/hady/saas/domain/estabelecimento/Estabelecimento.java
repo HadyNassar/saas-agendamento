@@ -177,6 +177,23 @@ public class Estabelecimento {
     @Column(name = "forma_pagamento")
     private List<String> formasPagamento = new ArrayList<>();
 
+    // ── Campanhas de disparo em massa (seção 5-B) ───────────────────────────
+    // Template universal opcional do estabelecimento, aplicado em toda
+    // campanha manual. Suporta variáveis {{nome_cliente}}, {{nome_estabelecimento}}
+    // e o placeholder obrigatório {{mensagem}}, onde entra o texto livre
+    // digitado pelo dono na hora de criar a campanha. Se null/branco, o
+    // sistema envia só o texto livre puro (comportamento antigo, sem template).
+    @Column(name = "template_mensagem_campanha", columnDefinition = "TEXT")
+    private String templateMensagemCampanha;
+
+    // Intervalo mínimo (em dias) que o dono precisa esperar entre o disparo
+    // de uma campanha manual e a próxima, para reduzir risco de banimento do
+    // WhatsApp por volume/repetição. Configurável pelo dono, mínimo 1 dia.
+    // Default 2 dias — ponto de partida conservador, não é limite oficial
+    // documentado pela Evolution API/WhatsApp, só uma escolha de produto.
+    @Column(name = "intervalo_minimo_campanha_dias", nullable = false)
+    private int intervaloMinimoCampanhaDias = 2;
+
     public Estabelecimento() {}
 
     public Plano getPlanoEfetivo() {
@@ -271,6 +288,8 @@ public class Estabelecimento {
     public BigDecimal getIndicacaoValorDesconto()     { return indicacaoValorDesconto; }
     public List<String> getComodidades()       { return comodidades; }
     public List<String> getFormasPagamento()   { return formasPagamento; }
+    public String getTemplateMensagemCampanha()     { return templateMensagemCampanha; }
+    public int getIntervaloMinimoCampanhaDias()     { return intervaloMinimoCampanhaDias; }
 
     // ── SETTERS ──────────────────────────────────────────────────────────────
     public void setId(Long id)                                         { this.id = id; }
@@ -322,4 +341,6 @@ public class Estabelecimento {
     public void setIndicacaoValorDesconto(BigDecimal v)                { this.indicacaoValorDesconto = v; }
     public void setComodidades(List<String> comodidades)               { this.comodidades = comodidades; }
     public void setFormasPagamento(List<String> formasPagamento)       { this.formasPagamento = formasPagamento; }
+    public void setTemplateMensagemCampanha(String v)                  { this.templateMensagemCampanha = v; }
+    public void setIntervaloMinimoCampanhaDias(int v)                  { this.intervaloMinimoCampanhaDias = v; }
 }

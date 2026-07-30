@@ -17,6 +17,9 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
 
     List<Cliente> findByEstabelecimentoId(Long estabelecimentoId);
 
+    // ─── Usado pelo filtro de campanha TODOS (disparo pra toda a base) ──────
+    List<Cliente> findByEstabelecimentoIdAndBloqueadoFalse(Long estabelecimentoId);
+
     Optional<Cliente> findByTelefoneAndEstabelecimentoId(String telefone, Long estabelecimentoId);
 
     Optional<Cliente> findByIdAndEstabelecimentoId(Long id, Long estabelecimentoId);

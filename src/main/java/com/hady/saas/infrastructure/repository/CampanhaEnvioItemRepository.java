@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -23,16 +24,25 @@ public interface CampanhaEnvioItemRepository extends JpaRepository<CampanhaEnvio
     // isso esta query não precisa (e não deve) filtrar por status da
     // campanha: o status do ITEM já é a garantia de que só dispara o que foi
     // confirmado.
+    // agendadoPara IS NULL cobre itens antigos criados antes desta coluna
+    // existir (compatibilidade) — eles continuam podendo ser pegos assim que
+    // PENDENTE, sem espera adicional.
     @Query("""
         SELECT i FROM CampanhaEnvioItem i
         WHERE i.status = 'PENDENTE'
+          AND (i.agendadoPara IS NULL OR i.agendadoPara <= :agora)
         ORDER BY i.criadoEm ASC
     """)
-    List<CampanhaEnvioItem> buscarProximoLotePendente(Pageable pageable);
+    List<CampanhaEnvioItem> buscarProximoLotePendente(@Param("agora") LocalDateTime agora, Pageable pageable);
 
     long countByCampanhaIdAndStatus(Long campanhaId, String status);
 
     long countByCampanhaId(Long campanhaId);
+
+    // Usado na confirmação para atribuir agendadoPara escalonado por lote
+    // (anti-banimento) — precisa vir em ordem estável (criadoEm) pra que a
+    // divisão em lotes seja determinística.
+    List<CampanhaEnvioItem> findByCampanhaIdAndStatusOrderByCriadoEmAsc(Long campanhaId, String status);
 
     // ── Transições em massa usadas por CampanhaEnvioService ────────────────
     // (chamadas sempre dentro de um método @Transactional do service, como

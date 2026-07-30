@@ -45,8 +45,20 @@ public class CampanhaEnvio {
     @Column(name = "filtro_estagio")
     private EstagioCliente filtroEstagio;
 
+    // Texto livre digitado pelo dono (SEM o template aplicado). É o que fica
+    // salvo aqui — o texto final por destinatário (com template +
+    // interpolação + variação) vive em CampanhaEnvioItem.mensagemFinal.
+    // Mantido o nome "mensagem" por compatibilidade com o que já existia.
     @Column(nullable = false, columnDefinition = "TEXT")
     private String mensagem;
+
+    // Snapshot informativo: se true, o templateMensagemCampanha do
+    // estabelecimento estava preenchido no momento da criação e foi aplicado
+    // a todos os itens desta campanha. Puramente para exibição no histórico
+    // (o dono pode mudar/remover o template depois sem afetar campanhas já
+    // criadas).
+    @Column(name = "usou_template", nullable = false)
+    private boolean usouTemplate = false;
 
     // MANUAL (dono disparou pelo painel) ou AUTOMATICA (regra do sistema,
     // itens 9/10). Nenhuma das duas origens está implementada ainda — esta
@@ -81,6 +93,7 @@ public class CampanhaEnvio {
     public Estabelecimento getEstabelecimento()  { return estabelecimento; }
     public EstagioCliente getFiltroEstagio()     { return filtroEstagio; }
     public String getMensagem()                  { return mensagem; }
+    public boolean isUsouTemplate()              { return usouTemplate; }
     public String getOrigem()                    { return origem; }
     public String getStatus()                    { return status; }
     public int getTotalDestinatarios()           { return totalDestinatarios; }
@@ -93,6 +106,7 @@ public class CampanhaEnvio {
     public void setEstabelecimento(Estabelecimento estabelecimento){ this.estabelecimento = estabelecimento; }
     public void setFiltroEstagio(EstagioCliente filtroEstagio)     { this.filtroEstagio = filtroEstagio; }
     public void setMensagem(String mensagem)                       { this.mensagem = mensagem; }
+    public void setUsouTemplate(boolean usouTemplate)               { this.usouTemplate = usouTemplate; }
     public void setOrigem(String origem)                           { this.origem = origem; }
     public void setStatus(String status)                           { this.status = status; }
     public void setTotalDestinatarios(int totalDestinatarios)      { this.totalDestinatarios = totalDestinatarios; }

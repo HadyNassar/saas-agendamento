@@ -72,7 +72,7 @@ public class CampanhaEnvioProcessorJob {
     @Scheduled(fixedDelay = 10 * 1000)
     public void processarLote() {
         Pageable lote = PageRequest.of(0, TAMANHO_LOTE);
-        List<CampanhaEnvioItem> pendentes = itemRepository.buscarProximoLotePendente(lote);
+        List<CampanhaEnvioItem> pendentes = itemRepository.buscarProximoLotePendente(LocalDateTime.now(), lote);
 
         if (pendentes.isEmpty()) return;
 
@@ -95,11 +95,19 @@ public class CampanhaEnvioProcessorJob {
         CampanhaEnvio campanha = item.getCampanha();
         Estabelecimento estabelecimento = campanha.getEstabelecimento();
 
+        // mensagemFinal já vem com template + texto livre + variação de
+        // saudação (montado em CampanhaEnvioService.criarRascunho). Fallback
+        // pro texto livre puro cobre itens criados antes desta coluna
+        // existir.
+        String mensagemParaEnviar = item.getMensagemFinal() != null && !item.getMensagemFinal().isBlank()
+                ? item.getMensagemFinal()
+                : campanha.getMensagem();
+
         WhatsAppMensagem registro = new WhatsAppMensagem();
         registro.setEstabelecimento(estabelecimento);
         registro.setCliente(item.getCliente());
         registro.setTelefoneDestino(item.getTelefoneDestino());
-        registro.setMensagem(campanha.getMensagem());
+        registro.setMensagem(mensagemParaEnviar);
         registro.setTipo("CAMPANHA");
         registro.setDirecao("ENVIADA");
 
@@ -110,7 +118,7 @@ public class CampanhaEnvioProcessorJob {
             }
 
             evolutionApiClient.enviarMensagem(
-                    estabelecimento.getEvolutionInstanceName(), item.getTelefoneDestino(), campanha.getMensagem());
+                    estabelecimento.getEvolutionInstanceName(), item.getTelefoneDestino(), mensagemParaEnviar);
 
             registro.setStatus("ENVIADO");
             registro.setEnviadoEm(LocalDateTime.now());

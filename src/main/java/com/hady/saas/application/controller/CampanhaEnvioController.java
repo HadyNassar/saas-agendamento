@@ -1,6 +1,7 @@
 package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.CampanhaEnvioResumoDTO;
+import com.hady.saas.application.dto.ConfigurarCampanhaEnvioDTO;
 import com.hady.saas.application.dto.CriarCampanhaEnvioDTO;
 import com.hady.saas.business.service.CampanhaEnvioService;
 import com.hady.saas.business.service.CampanhaEnvioService.CampanhaEnvioException;
@@ -134,6 +135,44 @@ public class CampanhaEnvioController {
         } catch (CampanhaEnvioException e) {
             return ResponseEntity.unprocessableEntity().body(Map.of("erro", e.getMessage()));
         }
+    }
+
+    // ── Configuração (template universal + intervalo anti-banimento) ───────
+
+    @GetMapping("/configuracao")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<?> obterConfiguracao(Authentication auth) {
+        Estabelecimento est = getEstab(auth);
+        var bloqueio = bloqueioDePlanoOuNull(est);
+        if (bloqueio != null) return bloqueio;
+
+        ConfigurarCampanhaEnvioDTO dto = new ConfigurarCampanhaEnvioDTO();
+        dto.setTemplateMensagemCampanha(est.getTemplateMensagemCampanha());
+        dto.setIntervaloMinimoCampanhaDias(est.getIntervaloMinimoCampanhaDias());
+        return ResponseEntity.ok(dto);
+    }
+
+    @PutMapping("/configuracao")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<?> salvarConfiguracao(Authentication auth, @RequestBody ConfigurarCampanhaEnvioDTO dto) {
+        Estabelecimento est = getEstab(auth);
+        var bloqueio = bloqueioDePlanoOuNull(est);
+        if (bloqueio != null) return bloqueio;
+
+        if (dto.getTemplateMensagemCampanha() != null && dto.getTemplateMensagemCampanha().isBlank()) {
+            est.setTemplateMensagemCampanha(null);
+        } else {
+            est.setTemplateMensagemCampanha(dto.getTemplateMensagemCampanha());
+        }
+        if (dto.getIntervaloMinimoCampanhaDias() != null) {
+            est.setIntervaloMinimoCampanhaDias(dto.getIntervaloMinimoCampanhaDias());
+        }
+        estabelecimentoRepository.save(est);
+
+        ConfigurarCampanhaEnvioDTO resposta = new ConfigurarCampanhaEnvioDTO();
+        resposta.setTemplateMensagemCampanha(est.getTemplateMensagemCampanha());
+        resposta.setIntervaloMinimoCampanhaDias(est.getIntervaloMinimoCampanhaDias());
+        return ResponseEntity.ok(resposta);
     }
 
     // ── Cancelar rascunho ────────────────────────────────────────────────────
