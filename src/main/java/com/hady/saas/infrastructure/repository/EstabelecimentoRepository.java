@@ -30,16 +30,16 @@ public interface EstabelecimentoRepository extends JpaRepository<Estabelecimento
               AND e.longitude IS NOT NULL
               AND (
                 6371 * acos(
-                    cos(radians(:lat)) * cos(radians(e.latitude)) *
-                    cos(radians(e.longitude) - radians(:lng)) +
-                    sin(radians(:lat)) * sin(radians(e.latitude))
+                    cos(radians(:lat)) * cos(radians(e.latitude::double precision)) *
+                    cos(radians(e.longitude::double precision) - radians(:lng)) +
+                    sin(radians(:lat)) * sin(radians(e.latitude::double precision))
                 )
               ) <= :raioKm
             ORDER BY (
                 6371 * acos(
-                    cos(radians(:lat)) * cos(radians(e.latitude)) *
-                    cos(radians(e.longitude) - radians(:lng)) +
-                    sin(radians(:lat)) * sin(radians(e.latitude))
+                    cos(radians(:lat)) * cos(radians(e.latitude::double precision)) *
+                    cos(radians(e.longitude::double precision) - radians(:lng)) +
+                    sin(radians(:lat)) * sin(radians(e.latitude::double precision))
                 )
             ) ASC
             """, nativeQuery = true)
