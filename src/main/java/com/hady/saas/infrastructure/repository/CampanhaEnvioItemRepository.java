@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -24,25 +23,28 @@ public interface CampanhaEnvioItemRepository extends JpaRepository<CampanhaEnvio
     // isso esta query não precisa (e não deve) filtrar por status da
     // campanha: o status do ITEM já é a garantia de que só dispara o que foi
     // confirmado.
-    // agendadoPara IS NULL cobre itens antigos criados antes desta coluna
-    // existir (compatibilidade) — eles continuam podendo ser pegos assim que
-    // PENDENTE, sem espera adicional.
+    //
+    // JOIN FETCH campanha + estabelecimento: sem isso, o job (que roda em
+    // ciclo @Scheduled próprio, sem uma sessão Hibernate aberta ligada à
+    // requisição HTTP) recebe um proxy lazy de CampanhaEnvio.estabelecimento
+    // e quebra com LazyInitializationException ("no session") ao tentar
+    // acessá-lo em processarItem — isso já aconteceu em produção e travava o
+    // lote inteiro, indefinidamente, a cada execução (o mesmo lote de itens
+    // era pego repetidamente e nunca avançava, pois a exceção interrompia o
+    // processamento antes de qualquer item ser marcado). Buscando tudo já
+    // carregado aqui, numa única query, elimina o problema pela raiz.
     @Query("""
         SELECT i FROM CampanhaEnvioItem i
+        JOIN FETCH i.campanha c
+        JOIN FETCH c.estabelecimento
         WHERE i.status = 'PENDENTE'
-          AND (i.agendadoPara IS NULL OR i.agendadoPara <= :agora)
         ORDER BY i.criadoEm ASC
     """)
-    List<CampanhaEnvioItem> buscarProximoLotePendente(@Param("agora") LocalDateTime agora, Pageable pageable);
+    List<CampanhaEnvioItem> buscarProximoLotePendente(Pageable pageable);
 
     long countByCampanhaIdAndStatus(Long campanhaId, String status);
 
     long countByCampanhaId(Long campanhaId);
-
-    // Usado na confirmação para atribuir agendadoPara escalonado por lote
-    // (anti-banimento) — precisa vir em ordem estável (criadoEm) pra que a
-    // divisão em lotes seja determinística.
-    List<CampanhaEnvioItem> findByCampanhaIdAndStatusOrderByCriadoEmAsc(Long campanhaId, String status);
 
     // ── Transições em massa usadas por CampanhaEnvioService ────────────────
     // (chamadas sempre dentro de um método @Transactional do service, como

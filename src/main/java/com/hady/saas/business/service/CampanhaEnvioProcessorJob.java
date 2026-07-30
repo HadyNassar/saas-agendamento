@@ -72,14 +72,29 @@ public class CampanhaEnvioProcessorJob {
     @Scheduled(fixedDelay = 10 * 1000)
     public void processarLote() {
         Pageable lote = PageRequest.of(0, TAMANHO_LOTE);
-        List<CampanhaEnvioItem> pendentes = itemRepository.buscarProximoLotePendente(LocalDateTime.now(), lote);
+        List<CampanhaEnvioItem> pendentes = itemRepository.buscarProximoLotePendente(lote);
 
         if (pendentes.isEmpty()) return;
 
         log.info("[CampanhaEnvio] Processando lote de {} item(ns) pendente(s)", pendentes.size());
 
         for (CampanhaEnvioItem item : pendentes) {
-            processarItem(item);
+            // Defesa em profundidade: mesmo com a causa raiz do
+            // LazyInitializationException corrigida (JOIN FETCH no
+            // repository), um erro inesperado em UM item nunca pode travar
+            // o lote inteiro — isso já aconteceu em produção (a mesma
+            // exceção repetia a cada ciclo de 10s, sem nenhum item avançar,
+            // porque a exceção escapava daqui e interrompia o
+            // pendentes.stream()...forEach() logo abaixo antes de chegar
+            // nele). Isolando por item, na pior hipótese só aquele item fica
+            // sem ser marcado nesta rodada — o job tenta de novo no próximo
+            // ciclo, sem bloquear os demais itens do lote.
+            try {
+                processarItem(item);
+            } catch (Exception e) {
+                log.error("[CampanhaEnvio] Erro inesperado processando item id={} (fora do fluxo normal de erro por item): {}",
+                        item.getId(), e.getMessage(), e);
+            }
         }
 
         // Atualiza o progresso agregado das campanhas afetadas por este lote
@@ -87,7 +102,14 @@ public class CampanhaEnvioProcessorJob {
         pendentes.stream()
                 .map(i -> i.getCampanha().getId())
                 .distinct()
-                .forEach(this::atualizarProgressoCampanha);
+                .forEach(campanhaId -> {
+                    try {
+                        atualizarProgressoCampanha(campanhaId);
+                    } catch (Exception e) {
+                        log.error("[CampanhaEnvio] Erro ao atualizar progresso da campanha id={}: {}",
+                                campanhaId, e.getMessage(), e);
+                    }
+                });
     }
 
     @Transactional
@@ -95,19 +117,11 @@ public class CampanhaEnvioProcessorJob {
         CampanhaEnvio campanha = item.getCampanha();
         Estabelecimento estabelecimento = campanha.getEstabelecimento();
 
-        // mensagemFinal já vem com template + texto livre + variação de
-        // saudação (montado em CampanhaEnvioService.criarRascunho). Fallback
-        // pro texto livre puro cobre itens criados antes desta coluna
-        // existir.
-        String mensagemParaEnviar = item.getMensagemFinal() != null && !item.getMensagemFinal().isBlank()
-                ? item.getMensagemFinal()
-                : campanha.getMensagem();
-
         WhatsAppMensagem registro = new WhatsAppMensagem();
         registro.setEstabelecimento(estabelecimento);
         registro.setCliente(item.getCliente());
         registro.setTelefoneDestino(item.getTelefoneDestino());
-        registro.setMensagem(mensagemParaEnviar);
+        registro.setMensagem(campanha.getMensagem());
         registro.setTipo("CAMPANHA");
         registro.setDirecao("ENVIADA");
 
@@ -118,7 +132,7 @@ public class CampanhaEnvioProcessorJob {
             }
 
             evolutionApiClient.enviarMensagem(
-                    estabelecimento.getEvolutionInstanceName(), item.getTelefoneDestino(), mensagemParaEnviar);
+                    estabelecimento.getEvolutionInstanceName(), item.getTelefoneDestino(), campanha.getMensagem());
 
             registro.setStatus("ENVIADO");
             registro.setEnviadoEm(LocalDateTime.now());
