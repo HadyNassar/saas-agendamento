@@ -12,12 +12,33 @@ import java.util.Optional;
 @Repository
 public interface CampanhaEnvioRepository extends JpaRepository<CampanhaEnvio, Long> {
 
-    List<CampanhaEnvio> findByEstabelecimentoIdOrderByCriadoEmDesc(Long estabelecimentoId);
+    // JOIN FETCH em profissionais (ManyToMany) e cupomEstabelecimento
+    // (ManyToOne LAZY): CampanhaEnvioResumoDTO acessa os dois pra montar a
+    // resposta do painel, e esse acesso acontece no controller, DEPOIS que o
+    // método do service já retornou — não dá pra confiar em uma transação
+    // ainda aberta ali. Buscando tudo já carregado aqui, numa única query,
+    // evita o mesmo LazyInitializationException que já aconteceu antes
+    // com CampanhaEnvioItem (ver CampanhaEnvioItemRepository). DISTINCT
+    // evita duplicar a linha por causa do JOIN com a coleção.
+    @Query("""
+        SELECT DISTINCT c FROM CampanhaEnvio c
+        LEFT JOIN FETCH c.profissionais
+        LEFT JOIN FETCH c.cupomEstabelecimento
+        WHERE c.estabelecimento.id = :estabelecimentoId
+        ORDER BY c.criadoEm DESC
+    """)
+    List<CampanhaEnvio> findByEstabelecimentoIdOrderByCriadoEmDesc(@Param("estabelecimentoId") Long estabelecimentoId);
 
     // Usado pelo controller de campanha manual (seção 5-B) pra garantir que o
     // dono só enxerga/mexe nas campanhas do próprio estabelecimento, mesmo
     // sabendo o id de uma campanha de outro salão.
-    Optional<CampanhaEnvio> findByIdAndEstabelecimentoId(Long id, Long estabelecimentoId);
+    @Query("""
+        SELECT DISTINCT c FROM CampanhaEnvio c
+        LEFT JOIN FETCH c.profissionais
+        LEFT JOIN FETCH c.cupomEstabelecimento
+        WHERE c.id = :id AND c.estabelecimento.id = :estabelecimentoId
+    """)
+    Optional<CampanhaEnvio> findByIdAndEstabelecimentoId(@Param("id") Long id, @Param("estabelecimentoId") Long estabelecimentoId);
 
     @Query("""
         SELECT c FROM CampanhaEnvio c

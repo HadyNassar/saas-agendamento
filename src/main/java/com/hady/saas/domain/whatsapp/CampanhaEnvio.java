@@ -1,10 +1,15 @@
 package com.hady.saas.domain.whatsapp;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.hady.saas.domain.cupom.CupomEstabelecimento;
 import com.hady.saas.domain.enums.EstagioCliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
+import com.hady.saas.domain.profissional.Profissional;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Cabeçalho de uma campanha de disparo em massa (itens 9/10 da camada
@@ -87,6 +92,35 @@ public class CampanhaEnvio {
     @Column(name = "concluido_em")
     private LocalDateTime concluidoEm;
 
+    // Vinculação de profissionais (pedido do dono do produto): a campanha
+    // pode mirar 1, vários ou TODOS os profissionais do estabelecimento.
+    // true (padrão) = todos, ignora a lista abaixo por completo, inclusive
+    // profissionais cadastrados DEPOIS da campanha (comportamento "todos"
+    // sempre dinâmico). false = restringe aos profissionais da lista.
+    @Column(name = "todos_profissionais", nullable = false)
+    private boolean todosProfissionais = true;
+
+    // Só relevante (e só preenchida) quando todosProfissionais = false.
+    // Guardada apenas para exibição no histórico da campanha — o filtro de
+    // destinatários já foi aplicado no momento da criação do rascunho
+    // (CampanhaEnvioService), não é recalculado a partir desta lista depois.
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "campanha_envio_profissional",
+            joinColumns = @JoinColumn(name = "campanha_envio_id"),
+            inverseJoinColumns = @JoinColumn(name = "profissional_id")
+    )
+    private List<Profissional> profissionais = new ArrayList<>();
+
+    // Cupom gerado junto com a campanha (opcional). Um único cupom
+    // compartilhado por todos os destinatários desta campanha — o link já
+    // com o código vai anexado à mensagem de cada item (ver
+    // CampanhaEnvioService.montarMensagemFinal). Null = campanha sem cupom.
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cupom_estabelecimento_id")
+    private CupomEstabelecimento cupomEstabelecimento;
+
     public CampanhaEnvio() {}
 
     public Long getId()                          { return id; }
@@ -101,6 +135,9 @@ public class CampanhaEnvio {
     public int getTotalErros()                   { return totalErros; }
     public LocalDateTime getCriadoEm()            { return criadoEm; }
     public LocalDateTime getConcluidoEm()         { return concluidoEm; }
+    public boolean isTodosProfissionais()         { return todosProfissionais; }
+    public List<Profissional> getProfissionais()  { return profissionais; }
+    public CupomEstabelecimento getCupomEstabelecimento() { return cupomEstabelecimento; }
 
     public void setId(Long id)                                     { this.id = id; }
     public void setEstabelecimento(Estabelecimento estabelecimento){ this.estabelecimento = estabelecimento; }
@@ -114,4 +151,7 @@ public class CampanhaEnvio {
     public void setTotalErros(int totalErros)                      { this.totalErros = totalErros; }
     public void setCriadoEm(LocalDateTime criadoEm)                { this.criadoEm = criadoEm; }
     public void setConcluidoEm(LocalDateTime concluidoEm)          { this.concluidoEm = concluidoEm; }
+    public void setTodosProfissionais(boolean todosProfissionais)  { this.todosProfissionais = todosProfissionais; }
+    public void setProfissionais(List<Profissional> profissionais) { this.profissionais = profissionais; }
+    public void setCupomEstabelecimento(CupomEstabelecimento cupomEstabelecimento) { this.cupomEstabelecimento = cupomEstabelecimento; }
 }

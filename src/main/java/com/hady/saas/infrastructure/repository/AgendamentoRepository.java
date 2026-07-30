@@ -234,4 +234,20 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
           AND a.status = com.hady.saas.domain.enums.StatusAgendamento.CONCLUIDO
     """)
     boolean clienteJaTeveAtendimentoConcluido(@Param("clienteId") Long clienteId);
+
+    // ── CAMPANHA VINCULADA A PROFISSIONAL(IS) ──────────────────────────────
+    // Usado por CampanhaEnvioService para restringir os destinatários de uma
+    // campanha manual aos clientes que já tiveram pelo menos um agendamento
+    // (qualquer status) com algum dos profissionais selecionados. Sem filtro
+    // de status proposital: mesmo um agendamento cancelado/faltou já indica
+    // que o cliente é "do profissional X" pra fins de segmentação de
+    // marketing — não é um relatório de atendimentos concluídos.
+    @Query("""
+        SELECT DISTINCT a.cliente.id FROM Agendamento a
+        WHERE a.estabelecimento.id = :estabelecimentoId
+          AND a.profissional.id IN :profissionalIds
+    """)
+    List<Long> findClienteIdsDistinctByEstabelecimentoIdAndProfissionalIdIn(
+            @Param("estabelecimentoId") Long estabelecimentoId,
+            @Param("profissionalIds") List<Long> profissionalIds);
 }

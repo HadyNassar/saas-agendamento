@@ -35,4 +35,10 @@ public interface ProfissionalRepository extends JpaRepository<Profissional, Long
            """)
     List<Profissional> findAtivosPorServico(@Param("estabId") Long estabelecimentoId,
                                             @Param("servicoId") Long servicoId);
+
+    // Usado por CampanhaEnvioService ao vincular uma campanha a profissionais
+    // específicos: garante, no mesmo passo, que os ids recebidos realmente
+    // pertencem ao estabelecimento do dono autenticado (evita que um id de
+    // profissional de outro salão vaze pra dentro da campanha).
+    List<Profissional> findByEstabelecimentoIdAndIdIn(Long estabelecimentoId, List<Long> ids);
 }

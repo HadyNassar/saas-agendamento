@@ -1,10 +1,14 @@
 package com.hady.saas.application.controller;
 
 import com.hady.saas.application.dto.CampanhaEnvioResumoDTO;
+import com.hady.saas.application.dto.CampanhaTemplateDTO;
 import com.hady.saas.application.dto.ConfigurarCampanhaEnvioDTO;
 import com.hady.saas.application.dto.CriarCampanhaEnvioDTO;
+import com.hady.saas.application.dto.CupomCampanhaDTO;
 import com.hady.saas.business.service.CampanhaEnvioService;
 import com.hady.saas.business.service.CampanhaEnvioService.CampanhaEnvioException;
+import com.hady.saas.business.service.CampanhaEnvioService.CupomConfig;
+import com.hady.saas.business.service.CampanhaTemplateCatalogo;
 import com.hady.saas.domain.enums.Plano;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
 import com.hady.saas.domain.whatsapp.CampanhaEnvio;
@@ -43,13 +47,16 @@ public class CampanhaEnvioController {
 
     private final EstabelecimentoRepository estabelecimentoRepository;
     private final CampanhaEnvioService campanhaEnvioService;
+    private final CampanhaTemplateCatalogo templateCatalogo;
     private final AuthUtil authUtil;
 
     public CampanhaEnvioController(EstabelecimentoRepository estabelecimentoRepository,
                                    CampanhaEnvioService campanhaEnvioService,
+                                   CampanhaTemplateCatalogo templateCatalogo,
                                    AuthUtil authUtil) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.campanhaEnvioService = campanhaEnvioService;
+        this.templateCatalogo = templateCatalogo;
         this.authUtil = authUtil;
     }
 
@@ -83,11 +90,35 @@ public class CampanhaEnvioController {
         }
 
         try {
-            CampanhaEnvio campanha = campanhaEnvioService.criarRascunho(est, dto.getFiltroEstagio(), dto.getMensagem());
+            CupomConfig cupomConfig = paraCupomConfig(dto.getCupom());
+            CampanhaEnvio campanha = campanhaEnvioService.criarRascunho(
+                    est, dto.getFiltroEstagio(), dto.getMensagem(), dto.getProfissionalIds(), cupomConfig);
             return ResponseEntity.status(HttpStatus.CREATED).body(new CampanhaEnvioResumoDTO(campanha));
         } catch (CampanhaEnvioException e) {
             return ResponseEntity.unprocessableEntity().body(Map.of("erro", e.getMessage()));
         }
+    }
+
+    private CupomConfig paraCupomConfig(CupomCampanhaDTO dto) {
+        if (dto == null) return null;
+        return new CupomConfig(dto.getCodigo(), dto.getTipoDesconto(), dto.getValorDesconto(),
+                dto.getDiasValidade(), dto.getLimiteUsos());
+    }
+
+    // ── Catálogo de campanhas predefinidas ──────────────────────────────────
+    // Front busca aqui pra montar a tela de "escolher um modelo pronto",
+    // com os campos de texto livre que cada modelo precisa. Genérico pra
+    // qualquer tipo de estabelecimento — ver CampanhaTemplateCatalogo.
+
+    @GetMapping("/templates")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<?> listarTemplates(Authentication auth) {
+        Estabelecimento est = getEstab(auth);
+        var bloqueio = bloqueioDePlanoOuNull(est);
+        if (bloqueio != null) return bloqueio;
+
+        List<CampanhaTemplateDTO> templates = templateCatalogo.listar();
+        return ResponseEntity.ok(templates);
     }
 
     // ── Listar / detalhar ────────────────────────────────────────────────────

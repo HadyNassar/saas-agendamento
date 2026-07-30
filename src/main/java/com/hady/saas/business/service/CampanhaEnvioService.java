@@ -1,19 +1,27 @@
 package com.hady.saas.business.service;
 
 import com.hady.saas.domain.cliente.Cliente;
+import com.hady.saas.domain.cupom.CupomEstabelecimento;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
+import com.hady.saas.domain.profissional.Profissional;
 import com.hady.saas.domain.whatsapp.CampanhaEnvio;
 import com.hady.saas.domain.whatsapp.CampanhaEnvioItem;
 import com.hady.saas.domain.enums.EstagioCliente;
+import com.hady.saas.infrastructure.repository.AgendamentoRepository;
 import com.hady.saas.infrastructure.repository.CampanhaEnvioItemRepository;
 import com.hady.saas.infrastructure.repository.CampanhaEnvioRepository;
 import com.hady.saas.infrastructure.repository.ClienteRepository;
+import com.hady.saas.infrastructure.repository.ProfissionalRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Regra de negócio da campanha de disparo em massa MANUAL (seção 5-B do
@@ -47,13 +55,27 @@ public class CampanhaEnvioService {
     private final CampanhaEnvioRepository campanhaRepository;
     private final CampanhaEnvioItemRepository itemRepository;
     private final ClienteRepository clienteRepository;
+    private final ProfissionalRepository profissionalRepository;
+    private final AgendamentoRepository agendamentoRepository;
+    private final CupomEstabelecimentoService cupomEstabelecimentoService;
+
+    // Mesmo padrão de link já usado por CampanhaAutomaticaService pro cupom
+    // de reativação: baseUrl + /app/{slug}/cupom/{codigo}.
+    @Value("${app.base-url:http://localhost:8080}")
+    private String baseUrl;
 
     public CampanhaEnvioService(CampanhaEnvioRepository campanhaRepository,
                                 CampanhaEnvioItemRepository itemRepository,
-                                ClienteRepository clienteRepository) {
+                                ClienteRepository clienteRepository,
+                                ProfissionalRepository profissionalRepository,
+                                AgendamentoRepository agendamentoRepository,
+                                CupomEstabelecimentoService cupomEstabelecimentoService) {
         this.campanhaRepository = campanhaRepository;
         this.itemRepository = itemRepository;
         this.clienteRepository = clienteRepository;
+        this.profissionalRepository = profissionalRepository;
+        this.agendamentoRepository = agendamentoRepository;
+        this.cupomEstabelecimentoService = cupomEstabelecimentoService;
     }
 
     public static class CampanhaEnvioException extends RuntimeException {
@@ -81,6 +103,15 @@ public class CampanhaEnvioService {
 
     @Transactional
     public CampanhaEnvio criarRascunho(Estabelecimento estabelecimento, EstagioCliente filtroEstagio, String mensagem) {
+        return criarRascunho(estabelecimento, filtroEstagio, mensagem, null, null);
+    }
+
+    // profissionalIds: null/vazia = todos os profissionais (comportamento
+    // padrão, preserva o método de 3 argumentos acima pra quem já usava).
+    // cupomConfig: null = campanha sem cupom.
+    @Transactional
+    public CampanhaEnvio criarRascunho(Estabelecimento estabelecimento, EstagioCliente filtroEstagio, String mensagem,
+                                       List<Long> profissionalIds, CupomConfig cupomConfig) {
         if (filtroEstagio == null) {
             throw new CampanhaEnvioException("Campo 'filtroEstagio' é obrigatório.");
         }
@@ -109,6 +140,24 @@ public class CampanhaEnvioService {
                     .toList();
         }
 
+        // ── Vínculo com profissional(is) ────────────────────────────────────
+        boolean todosProfissionais = profissionalIds == null || profissionalIds.isEmpty();
+        List<Profissional> profissionaisVinculados = List.of();
+        if (!todosProfissionais) {
+            profissionaisVinculados = profissionalRepository
+                    .findByEstabelecimentoIdAndIdIn(estabelecimento.getId(), profissionalIds);
+            if (profissionaisVinculados.isEmpty()) {
+                throw new CampanhaEnvioException("Nenhum dos profissionais informados foi encontrado neste estabelecimento.");
+            }
+            List<Long> idsEncontrados = profissionaisVinculados.stream().map(Profissional::getId).toList();
+            Set<Long> clienteIdsDoProfissional = Set.copyOf(
+                    agendamentoRepository.findClienteIdsDistinctByEstabelecimentoIdAndProfissionalIdIn(
+                            estabelecimento.getId(), idsEncontrados));
+            destinatarios = destinatarios.stream()
+                    .filter(c -> clienteIdsDoProfissional.contains(c.getId()))
+                    .toList();
+        }
+
         if (destinatarios.isEmpty()) {
             String detalhe = (filtroEstagio == EstagioCliente.TODOS)
                     ? "Nenhum cliente cadastrado (ou todos estão bloqueados)."
@@ -116,8 +165,17 @@ public class CampanhaEnvioService {
                       + "o estágio do cliente só é calculado quando um atendimento dele é concluído — clientes "
                       + "cadastrados manualmente e sem histórico ainda não têm estágio definido. Use o filtro "
                       + "'TODOS' pra alcançar a base inteira, independente do estágio.";
+            if (!todosProfissionais) {
+                detalhe = "Nenhum cliente do segmento '" + filtroEstagio
+                        + "' tem histórico de agendamento com o(s) profissional(is) selecionado(s).";
+            }
             throw new CampanhaEnvioException(detalhe + " Nenhum rascunho foi criado.");
         }
+
+        // ── Cupom opcional, criado junto com o rascunho ─────────────────────
+        CupomEstabelecimento cupomGerado = cupomConfig != null
+                ? gerarCupomDaCampanha(estabelecimento, cupomConfig)
+                : null;
 
         String templateEstabelecimento = estabelecimento.getTemplateMensagemCampanha();
         boolean usaTemplate = templateEstabelecimento != null && !templateEstabelecimento.isBlank();
@@ -130,13 +188,24 @@ public class CampanhaEnvioService {
         campanha.setOrigem("MANUAL");
         campanha.setStatus("RASCUNHO");
         campanha.setTotalDestinatarios(destinatarios.size());
+        campanha.setTodosProfissionais(todosProfissionais);
+        campanha.setProfissionais(profissionaisVinculados);
+        campanha.setCupomEstabelecimento(cupomGerado);
         campanha = campanhaRepository.save(campanha);
+
+        // Trecho do cupom anexado uma vez só (o link é o mesmo pra todo
+        // mundo — cupom compartilhado da campanha), reaproveitado em cada
+        // mensagemFinal.
+        String trechoCupom = cupomGerado != null ? montarTrechoCupom(estabelecimento, cupomGerado) : null;
 
         for (int i = 0; i < destinatarios.size(); i++) {
             Cliente cliente = destinatarios.get(i);
             int indiceLote = i / TAMANHO_LOTE_DISTRIBUICAO;
             String saudacao = VARIACOES_SAUDACAO.get(indiceLote % VARIACOES_SAUDACAO.size());
             String mensagemFinal = montarMensagemFinal(estabelecimento, cliente, mensagem, saudacao, usaTemplate);
+            if (trechoCupom != null) {
+                mensagemFinal = mensagemFinal + trechoCupom;
+            }
 
             CampanhaEnvioItem item = new CampanhaEnvioItem(campanha, cliente, cliente.getTelefone());
             item.setMensagemFinal(mensagemFinal);
@@ -145,6 +214,45 @@ public class CampanhaEnvioService {
         }
 
         return campanha;
+    }
+
+    // Parâmetros de criação do cupom, desacoplado do DTO da camada de
+    // aplicação de propósito (mesmo padrão dos demais métodos deste
+    // service, que recebem tipos primitivos/próprios do domínio).
+    public record CupomConfig(String codigo, String tipoDesconto, BigDecimal valorDesconto,
+                              Integer diasValidade, Integer limiteUsos) {}
+
+    private CupomEstabelecimento gerarCupomDaCampanha(Estabelecimento estabelecimento, CupomConfig cupomConfig) {
+        String codigo = (cupomConfig.codigo() != null && !cupomConfig.codigo().isBlank())
+                ? cupomConfig.codigo().trim()
+                // Código automático quando o dono não escolhe um: prefixo
+                // fixo + timestamp, mesmo padrão de unicidade já usado em
+                // CampanhaAutomaticaService.gerarCupomReativacaoOuNull.
+                : "PROMO" + (System.currentTimeMillis() % 1000000);
+
+        // diasValidade nulo = sem expiração (mesma semântica de
+        // CupomEstabelecimentoService.criar, que já aceita validadeData
+        // nula). Quando informado, validadeData = hoje + diasValidade, e o
+        // próprio service valida o teto de 7 dias — não duplicamos essa
+        // regra aqui.
+        LocalDate validadeData = cupomConfig.diasValidade() != null
+                ? LocalDate.now().plusDays(cupomConfig.diasValidade())
+                : null;
+
+        return cupomEstabelecimentoService.criar(
+                estabelecimento,
+                codigo,
+                cupomConfig.tipoDesconto(),
+                cupomConfig.valorDesconto(),
+                validadeData,
+                cupomConfig.limiteUsos());
+    }
+
+    // Mesmo formato de link já usado em CampanhaAutomaticaService /
+    // AgendamentoPublicoController#validarCupom: baseUrl + /app/{slug}/cupom/{codigo}.
+    private String montarTrechoCupom(Estabelecimento estabelecimento, CupomEstabelecimento cupom) {
+        String link = baseUrl + "/app/" + estabelecimento.getSlug() + "/cupom/" + cupom.getCodigo();
+        return "\n\n🎁 Use o cupom *" + cupom.getCodigo() + "*: " + link;
     }
 
     private String montarMensagemFinal(Estabelecimento estabelecimento, Cliente cliente,
@@ -241,6 +349,14 @@ public class CampanhaEnvioService {
         itemRepository.cancelarItensDaCampanha(campanha.getId());
         campanha.setStatus("CANCELADA");
         campanha.setConcluidoEm(LocalDateTime.now());
+
+        // Se essa campanha tinha um cupom gerado só pra ela, desativa junto
+        // — não faz sentido o cupom continuar válido pra uma campanha que
+        // nunca vai sair do papel.
+        if (campanha.getCupomEstabelecimento() != null) {
+            cupomEstabelecimentoService.desativar(estabelecimento, campanha.getCupomEstabelecimento().getId());
+        }
+
         return campanhaRepository.save(campanha);
     }
 
