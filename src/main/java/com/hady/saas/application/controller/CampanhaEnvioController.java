@@ -92,7 +92,8 @@ public class CampanhaEnvioController {
         try {
             CupomConfig cupomConfig = paraCupomConfig(dto.getCupom());
             CampanhaEnvio campanha = campanhaEnvioService.criarRascunho(
-                    est, dto.getFiltroEstagio(), dto.getMensagem(), dto.getProfissionalIds(), cupomConfig);
+                    est, dto.getFiltroEstagio(), dto.getMensagem(), dto.getProfissionalIds(),
+                    cupomConfig, dto.getCupomEstabelecimentoId());
             return ResponseEntity.status(HttpStatus.CREATED).body(new CampanhaEnvioResumoDTO(campanha));
         } catch (CampanhaEnvioException e) {
             return ResponseEntity.unprocessableEntity().body(Map.of("erro", e.getMessage()));

@@ -112,6 +112,16 @@ public class CampanhaEnvioService {
     @Transactional
     public CampanhaEnvio criarRascunho(Estabelecimento estabelecimento, EstagioCliente filtroEstagio, String mensagem,
                                        List<Long> profissionalIds, CupomConfig cupomConfig) {
+        return criarRascunho(estabelecimento, filtroEstagio, mensagem, profissionalIds, cupomConfig, null);
+    }
+
+    // cupomExistenteId: quando informado, reaproveita um CupomEstabelecimento
+    // já existente (criado manualmente na tela de Cupons) em vez de gerar um
+    // novo — tem prioridade sobre cupomConfig se os dois vierem preenchidos
+    // por engano (não deveria acontecer, o front manda só um dos dois).
+    @Transactional
+    public CampanhaEnvio criarRascunho(Estabelecimento estabelecimento, EstagioCliente filtroEstagio, String mensagem,
+                                       List<Long> profissionalIds, CupomConfig cupomConfig, Long cupomExistenteId) {
         if (filtroEstagio == null) {
             throw new CampanhaEnvioException("Campo 'filtroEstagio' é obrigatório.");
         }
@@ -162,9 +172,9 @@ public class CampanhaEnvioService {
             String detalhe = (filtroEstagio == EstagioCliente.TODOS)
                     ? "Nenhum cliente cadastrado (ou todos estão bloqueados)."
                     : "Nenhum cliente encontrado para o segmento '" + filtroEstagio + "'. Isso pode acontecer porque "
-                      + "o estágio do cliente só é calculado quando um atendimento dele é concluído — clientes "
-                      + "cadastrados manualmente e sem histórico ainda não têm estágio definido. Use o filtro "
-                      + "'TODOS' pra alcançar a base inteira, independente do estágio.";
+                    + "o estágio do cliente só é calculado quando um atendimento dele é concluído — clientes "
+                    + "cadastrados manualmente e sem histórico ainda não têm estágio definido. Use o filtro "
+                    + "'TODOS' pra alcançar a base inteira, independente do estágio.";
             if (!todosProfissionais) {
                 detalhe = "Nenhum cliente do segmento '" + filtroEstagio
                         + "' tem histórico de agendamento com o(s) profissional(is) selecionado(s).";
@@ -172,10 +182,19 @@ public class CampanhaEnvioService {
             throw new CampanhaEnvioException(detalhe + " Nenhum rascunho foi criado.");
         }
 
-        // ── Cupom opcional, criado junto com o rascunho ─────────────────────
-        CupomEstabelecimento cupomGerado = cupomConfig != null
-                ? gerarCupomDaCampanha(estabelecimento, cupomConfig)
-                : null;
+        // ── Cupom opcional: reaproveita um existente OU cria um novo ────────
+        CupomEstabelecimento cupomGerado;
+        if (cupomExistenteId != null) {
+            try {
+                cupomGerado = cupomEstabelecimentoService.buscarDoEstabelecimento(estabelecimento, cupomExistenteId);
+            } catch (RuntimeException e) {
+                throw new CampanhaEnvioException("Cupom selecionado não foi encontrado neste estabelecimento.");
+            }
+        } else if (cupomConfig != null) {
+            cupomGerado = gerarCupomDaCampanha(estabelecimento, cupomConfig);
+        } else {
+            cupomGerado = null;
+        }
 
         String templateEstabelecimento = estabelecimento.getTemplateMensagemCampanha();
         boolean usaTemplate = templateEstabelecimento != null && !templateEstabelecimento.isBlank();
@@ -306,8 +325,8 @@ public class CampanhaEnvioService {
                 long faltam = minimoExigido - diasDesdeUltima;
                 throw new CampanhaEnvioException(
                         "Para reduzir o risco de bloqueio do WhatsApp, é preciso esperar pelo menos "
-                        + minimoExigido + " dia(s) entre campanhas. Faltam " + faltam
-                        + " dia(s) para poder confirmar uma nova campanha.");
+                                + minimoExigido + " dia(s) entre campanhas. Faltam " + faltam
+                                + " dia(s) para poder confirmar uma nova campanha.");
             }
         });
 

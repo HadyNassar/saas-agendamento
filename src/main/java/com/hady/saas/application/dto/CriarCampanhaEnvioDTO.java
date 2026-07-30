@@ -35,6 +35,7 @@ public class CriarCampanhaEnvioDTO {
     private String mensagem;
     private List<Long> profissionalIds;
     private CupomCampanhaDTO cupom;
+    private Long cupomEstabelecimentoId;
 
     public CriarCampanhaEnvioDTO() {}
 
@@ -42,9 +43,11 @@ public class CriarCampanhaEnvioDTO {
     public String getMensagem()                { return mensagem; }
     public List<Long> getProfissionalIds()     { return profissionalIds; }
     public CupomCampanhaDTO getCupom()         { return cupom; }
+    public Long getCupomEstabelecimentoId()    { return cupomEstabelecimentoId; }
 
     public void setFiltroEstagio(EstagioCliente filtroEstagio) { this.filtroEstagio = filtroEstagio; }
     public void setMensagem(String mensagem)                   { this.mensagem = mensagem; }
     public void setProfissionalIds(List<Long> profissionalIds) { this.profissionalIds = profissionalIds; }
     public void setCupom(CupomCampanhaDTO cupom)                { this.cupom = cupom; }
+    public void setCupomEstabelecimentoId(Long cupomEstabelecimentoId) { this.cupomEstabelecimentoId = cupomEstabelecimentoId; }
 }
