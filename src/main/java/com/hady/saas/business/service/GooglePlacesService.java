@@ -6,6 +6,7 @@ import com.hady.saas.application.dto.SalaoExternoAdminDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
@@ -43,7 +44,7 @@ public class GooglePlacesService {
 
     // Busca salões de estética/beleza próximos a um ponto.
     // Usa cache de 24h em banco antes de consultar a API paga do Google.
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<SalaoExternoAdminDTO> buscarSaloesProximos(double lat, double lng, double raioKm) {
         String chaveBusca = "lista_" + gerarChaveBusca(lat, lng, raioKm);
 
@@ -61,7 +62,7 @@ public class GooglePlacesService {
     // o usuário clica em um pin cinza pra prospectar. Cache de 30 dias —
     // uma vez buscado, não cobra de novo pro mesmo salão por um mês inteiro.
     // GET chamado sob demanda, nunca em lote (mantém custo baixo).
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String buscarTelefone(String googlePlaceId) {
         String chaveBusca = "telefone_" + googlePlaceId;
 
