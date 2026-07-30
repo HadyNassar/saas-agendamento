@@ -1,4 +1,4 @@
--- Coluna de filtro por estágio do cliente
+-- Coluna de filtro por estágio do cliente (já existe, mantém o IF NOT EXISTS por segurança)
 ALTER TABLE campanha_envio
     ADD COLUMN IF NOT EXISTS filtro_estagio VARCHAR(50);
 
@@ -17,5 +17,5 @@ CREATE TABLE IF NOT EXISTS campanha_envio_profissional (
                                                            profissional_id   BIGINT NOT NULL,
                                                            PRIMARY KEY (campanha_envio_id, profissional_id),
     CONSTRAINT fk_cep_campanha FOREIGN KEY (campanha_envio_id) REFERENCES campanha_envio (id),
-    CONSTRAINT fk_cep_profissional FOREIGN KEY (profissional_id) REFERENCES profissional (id)
+    CONSTRAINT fk_cep_profissional FOREIGN KEY (profissional_id) REFERENCES profissionais (id)
     );
