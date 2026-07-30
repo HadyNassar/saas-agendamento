@@ -60,7 +60,7 @@ public class CampanhaEnvioService {
     private final CupomEstabelecimentoService cupomEstabelecimentoService;
 
     // Mesmo padrão de link já usado por CampanhaAutomaticaService pro cupom
-    // de reativação: baseUrl + /app/{slug}/cupom/{codigo}.
+    // de reativação: baseUrl + /app/{slug}?cupom={codigo}.
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
 
@@ -269,8 +269,14 @@ public class CampanhaEnvioService {
 
     // Mesmo formato de link já usado em CampanhaAutomaticaService /
     // AgendamentoPublicoController#validarCupom: baseUrl + /app/{slug}/cupom/{codigo}.
+    // Formato CORRIGIDO: a página pública de agendamento é /app/{slug} e lê
+    // o cupom da query string (?cupom=CODIGO) pra aplicar o desconto antes
+    // da confirmação — não uma rota própria por path. O formato antigo
+    // (/app/{slug}/cupom/{codigo}) só bate com o endpoint de API
+    // AgendamentoPublicoController#validarCupom (JSON puro), não com
+    // nenhuma rota do front, e por isso caía direto na landing page.
     private String montarTrechoCupom(Estabelecimento estabelecimento, CupomEstabelecimento cupom) {
-        String link = baseUrl + "/app/" + estabelecimento.getSlug() + "/cupom/" + cupom.getCodigo();
+        String link = baseUrl + "/app/" + estabelecimento.getSlug() + "?cupom=" + cupom.getCodigo();
         return "\n\n🎁 Use o cupom *" + cupom.getCodigo() + "*: " + link;
     }
 

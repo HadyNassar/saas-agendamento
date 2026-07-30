@@ -204,11 +204,12 @@ public class CampanhaAutomaticaService {
                     1 // um único uso — é um cupom pessoal pra este cliente, não geral
             );
 
-            // Mesmo padrão de link já usado em WhatsAppService.enviarLembreteRetorno
-            // (baseUrl + /app/{slug}), com o cupom aplicado via path — mesmo
-            // formato do endpoint público de validação já existente
-            // (AgendamentoPublicoController#validarCupom).
-            return baseUrl + "/app/" + estabelecimento.getSlug() + "/cupom/" + cupom.getCodigo();
+            // Formato CORRIGIDO: /app/{slug} é a página pública de
+            // agendamento, que lê o cupom via query string (?cupom=CODIGO)
+            // — não uma rota própria por path. O formato antigo só batia
+            // com o endpoint de API validarCupom (JSON), caindo direto na
+            // landing page pro cliente que clicasse no link.
+            return baseUrl + "/app/" + estabelecimento.getSlug() + "?cupom=" + cupom.getCodigo();
         } catch (Exception e) {
             log.error("[CampanhaAutomatica] Falha ao gerar cupom de reativação pro cliente id={}: {}",
                     cliente.getId(), e.getMessage(), e);
