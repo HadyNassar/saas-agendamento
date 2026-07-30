@@ -246,6 +246,15 @@ public class CampanhaAutomaticaService {
                     + "Sentimos sua falta na *" + nomeEstabelecimento + "*! Faz um tempinho que você não aparece "
                     + "e queríamos muito te ver de novo.\n\n"
                     + "Que tal agendar um novo horário? É só responder essa mensagem! 📅";
+
+            // TODOS é um pseudo-segmento usado apenas como filtro de campanha
+            // manual (CampanhaEnvioService) — nunca é o estagioAtual real de
+            // um Cliente, então este branch não deveria ser alcançado na
+            // prática. Cobrimos aqui só para satisfazer a exaustividade do
+            // switch, que passou a ser exigida pelo compilador após TODOS
+            // ser adicionado ao enum EstagioCliente.
+            case TODOS -> "Oi, " + primeiroNome + "! 😊\n\n"
+                    + "Temos novidades na *" + nomeEstabelecimento + "*! Que tal agendar um horário com a gente? 📅";
         };
     }
 }
