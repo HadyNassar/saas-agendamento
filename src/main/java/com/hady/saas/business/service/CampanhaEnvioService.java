@@ -46,8 +46,9 @@ import java.util.Set;
  *   2) Itens de uma mesma campanha são espalhados no tempo via
  *      agendadoPara, em lotes, em vez de todos ficarem PENDENTE ao mesmo
  *      tempo.
- *   3) Variação leve de saudação entre lotes, pra reduzir o padrão de
- *      "mensagem idêntica em massa".
+ *   3) Variação de saudação e de fechamento/CTA POR MENSAGEM (ver
+ *      VariadorMensagemService), pra reduzir o padrão de "mensagem
+ *      idêntica em massa" — sem alterar o texto livre da oferta.
  */
 @Service
 public class CampanhaEnvioService {
@@ -58,6 +59,7 @@ public class CampanhaEnvioService {
     private final ProfissionalRepository profissionalRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final CupomEstabelecimentoService cupomEstabelecimentoService;
+    private final VariadorMensagemService variadorMensagemService;
 
     // Mesmo padrão de link já usado por CampanhaAutomaticaService pro cupom
     // de reativação: baseUrl + /app/{slug}?cupom={codigo}.
@@ -69,13 +71,15 @@ public class CampanhaEnvioService {
                                 ClienteRepository clienteRepository,
                                 ProfissionalRepository profissionalRepository,
                                 AgendamentoRepository agendamentoRepository,
-                                CupomEstabelecimentoService cupomEstabelecimentoService) {
+                                CupomEstabelecimentoService cupomEstabelecimentoService,
+                                VariadorMensagemService variadorMensagemService) {
         this.campanhaRepository = campanhaRepository;
         this.itemRepository = itemRepository;
         this.clienteRepository = clienteRepository;
         this.profissionalRepository = profissionalRepository;
         this.agendamentoRepository = agendamentoRepository;
         this.cupomEstabelecimentoService = cupomEstabelecimentoService;
+        this.variadorMensagemService = variadorMensagemService;
     }
 
     public static class CampanhaEnvioException extends RuntimeException {
@@ -89,15 +93,11 @@ public class CampanhaEnvioService {
     // Intervalo entre um lote e o próximo, dentro da MESMA campanha.
     private static final long MINUTOS_ENTRE_LOTES = 12;
 
-    // Pequenas variações de abertura, alternadas por lote — escolha de
-    // produto, não regra oficial da Meta/WhatsApp. O texto livre e o
-    // template continuam os mesmos; só a saudação de abertura muda.
-    private static final List<String> VARIACOES_SAUDACAO = List.of(
-            "Olá",
-            "Oi",
-            "Olá, tudo bem?",
-            "Oi, tudo bem?"
-    );
+    // A variação de saudação/CTA passou a ser feita POR MENSAGEM (não mais
+    // por lote de TAMANHO_LOTE_DISTRIBUICAO), pra reduzir mais o padrão de
+    // "mensagem idêntica em massa" — ver VariadorMensagemService, que
+    // concentra a lista de saudações e as variações de fechamento/CTA
+    // espelhadas nos templates de CampanhaTemplateCatalogo.
 
     // ── Criação do rascunho ─────────────────────────────────────────────────
 
@@ -219,9 +219,21 @@ public class CampanhaEnvioService {
 
         for (int i = 0; i < destinatarios.size(); i++) {
             Cliente cliente = destinatarios.get(i);
-            int indiceLote = i / TAMANHO_LOTE_DISTRIBUICAO;
-            String saudacao = VARIACOES_SAUDACAO.get(indiceLote % VARIACOES_SAUDACAO.size());
+
+            // Saudação sorteada POR MENSAGEM (não mais por lote de 30) —
+            // cada destinatário pode receber uma abertura diferente, mesmo
+            // dentro do mesmo lote de disparo do CampanhaEnvioProcessorJob.
+            String saudacao = variadorMensagemService.sortearSaudacao();
             String mensagemFinal = montarMensagemFinal(estabelecimento, cliente, mensagem, saudacao, usaTemplate);
+
+            // Variação do fechamento/CTA (ex: "Responda essa mensagem pra
+            // garantir seu horário!") por uma alternativa com o mesmo
+            // sentido, só quando a mensagem bate com um padrão conhecido
+            // do catálogo de templates (CampanhaTemplateCatalogo). Nunca
+            // toca no texto livre da oferta em si — aplicado ANTES de
+            // anexar o cupom, pra não correr risco de mexer no link.
+            mensagemFinal = variadorMensagemService.variarFechamento(mensagemFinal);
+
             if (trechoCupom != null) {
                 mensagemFinal = mensagemFinal + trechoCupom;
             }
