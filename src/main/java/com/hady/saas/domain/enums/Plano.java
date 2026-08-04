@@ -4,21 +4,29 @@ import java.math.BigDecimal;
 
 public enum Plano {
 
-    STANDARD(2, new BigDecimal("49.00"),  "Agendara Standard"),
-    ELITE   (4, new BigDecimal("69.00"),  "Agendara Elite"),
-    PLATINUM (7, new BigDecimal("119.00"), "Agendara Platinum");
+    STANDARD    (2, new BigDecimal("49.00"),  "Agendara Standard", 1),
+    ELITE       (4, new BigDecimal("69.00"),  "Agendara Elite", 1),
+    PLATINUM    (7, new BigDecimal("119.00"), "Agendara Platinum", 1),
+    // Promoção de lançamento — pagamento único via PIX, válido para os
+    // primeiros clientes. Mesmo limite de usuários do Elite mensal.
+    ELITE_ANUAL (4, new BigDecimal("150.00"), "Agendara Elite Anual (Promoção)", 12);
 
     private final int limiteUsuarios;
     private final BigDecimal preco;
     private final String descricao;
+    private final int duracaoMeses;
 
-    Plano(int limiteUsuarios, BigDecimal preco, String descricao) {
+    Plano(int limiteUsuarios, BigDecimal preco, String descricao, int duracaoMeses) {
         this.limiteUsuarios = limiteUsuarios;
         this.preco          = preco;
         this.descricao      = descricao;
+        this.duracaoMeses   = duracaoMeses;
     }
 
     public int getLimiteUsuarios() { return limiteUsuarios; }
     public BigDecimal getPreco()   { return preco; }
     public String getDescricao()   { return descricao; }
+
+    /** Quantos meses de acesso esse plano libera por ciclo de pagamento. */
+    public int getDuracaoMeses()   { return duracaoMeses; }
 }

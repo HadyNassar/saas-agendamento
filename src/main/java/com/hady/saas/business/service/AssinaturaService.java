@@ -347,9 +347,11 @@ public class AssinaturaService {
         String email = dto.getPixEmail() != null && !dto.getPixEmail().isBlank()
                 ? dto.getPixEmail() : "pagador@agendara.com.br";
 
+        String periodoDesc = plano.getDuracaoMeses() >= 12 ? "Anual" : "Mensal";
+
         Map<String, Object> body = new HashMap<>();
         body.put("transaction_amount", plano.getPreco());
-        body.put("description", plano.getDescricao() + " - Mensal");
+        body.put("description", plano.getDescricao() + " - " + periodoDesc);
         body.put("payment_method_id", "pix");
         body.put("payer", Map.of("email", email));
 
@@ -422,13 +424,15 @@ public class AssinaturaService {
             Plano plano = Plano.valueOf(cobranca.getPlano());
             Estabelecimento estab = cobranca.getEstabelecimento();
 
+            LocalDate validoAte = LocalDate.now().plusMonths(plano.getDuracaoMeses());
+
             estab.setPlano(plano);
             estab.setPlanoAtivo(true);
-            estab.setPlanoValidoAte(LocalDate.now().plusMonths(1));
+            estab.setPlanoValidoAte(validoAte);
             estabelecimentoRepo.save(estab);
 
             cobranca.setStatus("APPROVED");
-            cobranca.setPeriodoFim(LocalDate.now().plusMonths(1));
+            cobranca.setPeriodoFim(validoAte);
             cobrancaRepo.save(cobranca);
 
             log.info("[PIX-PLANO] Plano {} ativado via webhook PIX para estab={}", plano, estab.getId());
