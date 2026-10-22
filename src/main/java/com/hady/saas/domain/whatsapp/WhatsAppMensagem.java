@@ -1,5 +1,6 @@
 package com.hady.saas.domain.whatsapp;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hady.saas.domain.agendamento.Agendamento;
 import com.hady.saas.domain.cliente.Cliente;
 import com.hady.saas.domain.estabelecimento.Estabelecimento;
@@ -62,14 +63,18 @@ public class WhatsAppMensagem {
 
     // GETTERS
     public Long getId() { return id; }
+    @JsonIgnore
     public Estabelecimento getEstabelecimento() { return estabelecimento; }
+    @JsonIgnore
     public Agendamento getAgendamento() { return agendamento; }
+    @JsonIgnore
     public Cliente getCliente() { return cliente; }
     public String getTelefoneDestino() { return telefoneDestino; }
     public String getMensagem() { return mensagem; }
     public String getTipo() { return tipo; }
     public String getStatus() { return status; }
     public String getDirecao() { return direcao; }
+    @JsonIgnore
     public ConversaWhatsApp getConversa() { return conversa; }
     public String getErroDetalhe() { return erroDetalhe; }
     public LocalDateTime getEnviadoEm() { return enviadoEm; }

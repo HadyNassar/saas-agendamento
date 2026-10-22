@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -110,6 +111,7 @@ public class WhatsAppRoboController {
 
     // ── Inbox de conversas ────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     @GetMapping("/conversas")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<?> listarConversas(Authentication auth,
@@ -131,6 +133,7 @@ public class WhatsAppRoboController {
 
     // ── Histórico de mensagens de uma conversa (item 5) ────────────────────
 
+    @Transactional(readOnly = true)
     @GetMapping("/conversas/{id}/mensagens")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<?> listarMensagens(Authentication auth, @PathVariable Long id) {
@@ -162,6 +165,7 @@ public class WhatsAppRoboController {
     // em seguida), com retorno automático às 20h do dia (ou do dia seguinte, se
     // já passou das 20h) — diferente da pausa manual da aba de controle, que
     // fica pausada até o dono reativar.
+    @Transactional
     @PostMapping("/conversas/{id}/responder")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<?> responder(Authentication auth, @PathVariable Long id,
@@ -229,6 +233,7 @@ public class WhatsAppRoboController {
 
     // ── Pausar / retomar individual ───────────────────────────────────────
 
+    @Transactional
     @PostMapping("/conversas/{id}/pausar")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<?> pausar(Authentication auth, @PathVariable Long id,
@@ -247,6 +252,7 @@ public class WhatsAppRoboController {
         return ResponseEntity.ok(new ConversaWhatsAppResumoDTO(conversa));
     }
 
+    @Transactional
     @PostMapping("/conversas/{id}/retomar")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<?> retomar(Authentication auth, @PathVariable Long id) {
