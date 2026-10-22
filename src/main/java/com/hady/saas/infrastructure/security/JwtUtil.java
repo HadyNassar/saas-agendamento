@@ -27,7 +27,7 @@ public class JwtUtil {
                 .claim("uid", usuarioId)
                 .claim("eid", estabelecimentoId)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 8))
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24 * 30)) // 30 dias — mantém o usuário logado ao fechar/reabrir o navegador
                 .signWith(getSigningKey())
                 .compact();
     }
