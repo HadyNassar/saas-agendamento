@@ -89,7 +89,7 @@ public class EvolutionWebhook {
             // Hoje só nos interessa mensagem recebida (mensagem enviada pelo próprio
             // número do salão via app do celular também dispara "messages.upsert" —
             // filtramos isso pelo campo fromMe dentro de data.key).
-            if (!"messages.upsert".equals(event)) {
+            if (!"messages.upsert".equalsIgnoreCase(event.replace('_', '.'))) {
                 return ResponseEntity.ok().build();
             }
 
@@ -112,7 +112,11 @@ public class EvolutionWebhook {
             // rejeitava ao tentar enviar (400 Bad Request, "exists": false).
             String telefone;
             if (remoteJid != null && remoteJid.contains("@lid")) {
-                String senderPn = key != null && key.get("senderPn") instanceof String s ? s : null;
+                // v2 usa "remoteJidAlt"; v1 usava "senderPn". Tenta os dois.
+                String senderPn = null;
+                if (key != null && key.get("remoteJidAlt") instanceof String s) senderPn = s;
+                if (senderPn == null && key != null && key.get("senderPn") instanceof String s) senderPn = s;
+                if (senderPn == null && data.get("remoteJidAlt") instanceof String s) senderPn = s;
                 if (senderPn == null && data.get("senderPn") instanceof String s) senderPn = s;
                 telefone = extrairTelefone(senderPn);
                 if (telefone == null) {

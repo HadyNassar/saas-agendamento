@@ -69,12 +69,15 @@ public class EvolutionApiClient {
         try {
             String url = baseUrl + "/webhook/set/" + instanceName;
             String webhookUrl = backendUrl + "/webhook/evolution/" + apiKey;
-            Map<String, Object> body = Map.of(
+            // Evolution v2: o corpo vai dentro de {"webhook": {...}} e usa camelCase.
+            Map<String, Object> webhook = Map.of(
                     "url", webhookUrl,
                     "enabled", true,
-                    "webhook_by_events", false,
+                    "webhookByEvents", false,
+                    "webhookBase64", false,
                     "events", java.util.List.of("MESSAGES_UPSERT")
             );
+            Map<String, Object> body = Map.of("webhook", webhook);
             restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers()), Map.class);
             log.info("[EvolutionAPI] Webhook configurado para instância '{}'.", instanceName);
         } catch (Exception e) {
@@ -191,6 +194,7 @@ public class EvolutionApiClient {
         Map<String, Object> map = (Map<String, Object>) item;
 
         if (map.get("apikey") instanceof String key) return key;
+        if (map.get("token") instanceof String key) return key; // v2
 
         Object instanceObj = map.get("instance");
         if (instanceObj instanceof Map) {
@@ -240,9 +244,10 @@ public class EvolutionApiClient {
         String numero = telefone.replaceAll("\\D", "");
         if (!numero.startsWith("55")) numero = "55" + numero;
 
+        // Evolution v2: "text" direto no corpo (sem o objeto textMessage da v1).
         Map<String, Object> body = Map.of(
                 "number", numero,
-                "textMessage", Map.of("text", mensagem)
+                "text", mensagem
         );
 
         restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers()), Map.class);
