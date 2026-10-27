@@ -23,6 +23,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -74,6 +76,15 @@ public class BotAgendamentoService {
     // quem só demorou algumas horas pra responder no mesmo dia. Não é regra de
     // negócio validada — ajustar se o dono do produto preferir outro valor.
     private static final long HORAS_INATIVIDADE_PARA_RESETAR_FLUXO = 12;
+
+    // Quantos dias à frente procurar a próxima vaga quando o dia pedido está
+    // cheio (limitado também por estabelecimento.getMesesAntecipacao()).
+    private static final int MAX_DIAS_BUSCA_ALTERNATIVA = 30;
+
+    // Máximo de opções "outra profissional" mostradas além da própria profissional.
+    private static final int MAX_PROFISSIONAIS_ALTERNATIVAS = 2;
+
+    private static final String ESTADO_AGUARDANDO_ALTERNATIVA = "AGUARDANDO_ALTERNATIVA";
 
     private final ServicoService servicoService;
     private final ProfissionalService profissionalService;
@@ -158,6 +169,7 @@ public class BotAgendamentoService {
                 case "AGUARDANDO_SERVICO" -> tratarAguardandoServico(texto, estabelecimento, conversa);
                 case "AGUARDANDO_PROFISSIONAL" -> tratarAguardandoProfissional(texto, estabelecimento, conversa);
                 case "AGUARDANDO_DATA" -> tratarAguardandoData(texto, estabelecimento, conversa);
+                case ESTADO_AGUARDANDO_ALTERNATIVA -> tratarAguardandoAlternativa(texto, estabelecimento, conversa);
                 case "AGUARDANDO_HORARIO" -> tratarAguardandoHorario(texto, conversa);
                 case "CONFIRMANDO" -> tratarConfirmando(texto, cliente, estabelecimento, conversa);
                 case ConversaWhatsApp.ESTADO_AGUARDANDO_ESCOLHA_AGENDAMENTO ->
@@ -461,30 +473,34 @@ public class BotAgendamentoService {
                     " mês(es) de antecedência. Tenta uma data até " + limite.format(FMT_DATA_CURTA) + ".";
         }
 
-        List<LocalTime> livres;
-        try {
-            livres = agendamentoService.gerarSlotsDisponiveis(
-                    contexto.getProfissionalId(), estabelecimento.getId(), dia, contexto.getServicoDuracaoMinutos());
-        } catch (RuntimeException e) {
-            // Ex: "Horario de funcionamento nao configurado para: SUNDAY"
-            return "Não temos atendimento nesse dia (" + nomeDoDia(dia) + "). Tenta outra data?";
-        }
+        List<LocalTime> livres = slotsLivresOuVazio(
+                contexto.getProfissionalId(), estabelecimento.getId(), dia, contexto.getServicoDuracaoMinutos());
 
         if (livres.isEmpty()) {
-            return "Não sobrou nenhum horário livre em " + dia.format(FMT_DATA_CURTA) +
-                    " pra esse profissional. Quer tentar outra data?";
+            // Dia sem vaga (ou sem atendimento) para essa profissional: em vez de
+            // mandar o cliente ficar tentando dia por dia, já procura a próxima
+            // vaga dela e também quem faz o mesmo serviço e tem vaga antes.
+            return oferecerAlternativas(estabelecimento, conversa, contexto, dia);
         }
 
+        return mostrarHorariosDoDia(conversa, contexto, dia, livres);
+    }
+
+    /** Salva o dia/horários no contexto, vai para AGUARDANDO_HORARIO e monta a lista numerada. */
+    private String mostrarHorariosDoDia(ConversaWhatsApp conversa, BotContexto contexto,
+                                        LocalDate dia, List<LocalTime> livres) {
         List<LocalTime> exibidos = livres.size() > MAX_HORARIOS_EXIBIDOS
                 ? livres.subList(0, MAX_HORARIOS_EXIBIDOS)
                 : livres;
 
         contexto.setDataEscolhida(dia.toString());
         contexto.setHorariosDisponiveis(exibidos.stream().map(LocalTime::toString).toList());
+        contexto.setAlternativas(new ArrayList<>());
         salvarContexto(conversa, contexto);
         conversa.setEstado("AGUARDANDO_HORARIO");
 
-        StringBuilder sb = new StringBuilder("Horários livres em " + dia.format(FMT_DATA_CURTA) + ":\n\n");
+        StringBuilder sb = new StringBuilder("Horários livres de " + contexto.getProfissionalNome()
+                + " em " + dia.format(FMT_DATA_CURTA) + ":\n\n");
         for (int i = 0; i < exibidos.size(); i++) {
             sb.append(i + 1).append(" - ").append(exibidos.get(i)).append("\n");
         }
@@ -493,6 +509,141 @@ public class BotAgendamentoService {
         }
         sb.append("\nResponda com o número do horário.");
         return sb.toString();
+    }
+
+    // ── DIA SEM VAGA: PRÓXIMA DATA + OUTRA PROFISSIONAL ─────────────────────
+
+    /** Igual a gerarSlotsDisponiveis, mas devolve lista vazia (em vez de exceção) em dia sem expediente configurado. */
+    private List<LocalTime> slotsLivresOuVazio(Long profissionalId, Long estabelecimentoId, LocalDate dia, int duracao) {
+        try {
+            return agendamentoService.gerarSlotsDisponiveis(profissionalId, estabelecimentoId, dia, duracao);
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+    }
+
+    /** Primeiro dia em [de, ate] (inclusive) com pelo menos 1 vaga para a profissional, ou null. */
+    private LocalDate primeiroDiaComVaga(Long profissionalId, Long estabelecimentoId, int duracao,
+                                         LocalDate de, LocalDate ate) {
+        for (LocalDate d = de; !d.isAfter(ate); d = d.plusDays(1)) {
+            if (!slotsLivresOuVazio(profissionalId, estabelecimentoId, d, duracao).isEmpty()) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * O dia pedido está sem vaga para a profissional escolhida. Monta um menu com:
+     *  - a próxima data em que ELA tem vaga;
+     *  - outras profissionais do mesmo serviço com vaga ANTES dessa data
+     *    (ou em qualquer data, se ela não tiver nada no período);
+     *  - a opção de digitar outra data manualmente.
+     */
+    private String oferecerAlternativas(Estabelecimento estabelecimento, ConversaWhatsApp conversa,
+                                        BotContexto contexto, LocalDate diaPedido) {
+        Long estabId = estabelecimento.getId();
+        int duracao = contexto.getServicoDuracaoMinutos();
+
+        LocalDate hoje = LocalDate.now(ZONA_BRASIL);
+        LocalDate limite = hoje.plusMonths(estabelecimento.getMesesAntecipacao());
+        LocalDate ate = diaPedido.plusDays(MAX_DIAS_BUSCA_ALTERNATIVA);
+        if (ate.isAfter(limite)) ate = limite;
+
+        // Próxima vaga da profissional escolhida (a partir do dia seguinte ao pedido).
+        LocalDate proximaDela = primeiroDiaComVaga(contexto.getProfissionalId(), estabId, duracao,
+                diaPedido.plusDays(1), ate);
+
+        // Outras profissionais do mesmo serviço: só interessa quem tem vaga antes
+        // da próxima vaga da escolhida (ou no período todo, se ela não tem nenhuma).
+        // O dia pedido entra na busca: a colega pode ter vaga justamente nele.
+        LocalDate ateOutras = proximaDela != null ? proximaDela.minusDays(1) : ate;
+        List<BotContexto.Alternativa> outras = new ArrayList<>();
+        for (Long outraId : contexto.getProfissionalIds()) {
+            if (outraId.equals(contexto.getProfissionalId())) continue;
+            LocalDate d = primeiroDiaComVaga(outraId, estabId, duracao, diaPedido, ateOutras);
+            if (d == null) continue;
+            Profissional outra = profissionalService.buscarPorId(outraId, estabId);
+            outras.add(new BotContexto.Alternativa(outra.getId(), outra.getNome(), d.toString()));
+        }
+        outras.sort(Comparator.comparing(BotContexto.Alternativa::getData));
+        if (outras.size() > MAX_PROFISSIONAIS_ALTERNATIVAS) {
+            outras = new ArrayList<>(outras.subList(0, MAX_PROFISSIONAIS_ALTERNATIVAS));
+        }
+
+        String nome = contexto.getProfissionalNome();
+        String diaTxt = diaPedido.format(FMT_DATA_CURTA);
+
+        // Nada em lugar nenhum: mantém o comportamento antigo (pedir outra data).
+        if (proximaDela == null && outras.isEmpty()) {
+            return nome + " não tem horário livre em " + diaTxt + " e não encontrei vaga nos próximos dias 😕 "
+                    + "Quer tentar outra data bem mais à frente?";
+        }
+
+        List<BotContexto.Alternativa> opcoes = new ArrayList<>();
+        if (proximaDela != null) {
+            opcoes.add(new BotContexto.Alternativa(contexto.getProfissionalId(), nome, proximaDela.toString()));
+        }
+        opcoes.addAll(outras);
+        // Quem tem vaga primeiro aparece primeiro; empate de data mantém a profissional escolhida na frente.
+        opcoes.sort(Comparator.comparing(BotContexto.Alternativa::getData));
+
+        contexto.setAlternativas(opcoes);
+        salvarContexto(conversa, contexto);
+        conversa.setEstado(ESTADO_AGUARDANDO_ALTERNATIVA);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(nome).append(" não tem horário livre em ").append(diaTxt).append(" 😕\n\n");
+        sb.append("Mas olha o que encontrei:\n\n");
+        for (int i = 0; i < opcoes.size(); i++) {
+            BotContexto.Alternativa a = opcoes.get(i);
+            LocalDate d = LocalDate.parse(a.getData());
+            sb.append(i + 1).append(" - ").append(a.getProfissionalNome())
+                    .append(" em ").append(d.format(FMT_DATA_CURTA))
+                    .append(" (").append(nomeDoDia(d)).append(")\n");
+        }
+        sb.append(opcoes.size() + 1).append(" - Escolher outra data\n");
+        sb.append("\nResponda só com o número da opção.");
+        return sb.toString();
+    }
+
+    private String tratarAguardandoAlternativa(String texto, Estabelecimento estabelecimento, ConversaWhatsApp conversa) {
+        BotContexto contexto = carregarContexto(conversa);
+        if (contexto == null || contexto.getAlternativas().isEmpty() || contexto.getServicoDuracaoMinutos() == null) {
+            resetar(conversa);
+            return "Perdi o fio da conversa aqui — pode digitar *agendar* de novo?";
+        }
+
+        List<BotContexto.Alternativa> opcoes = contexto.getAlternativas();
+        Integer indice = parseIndice(texto, opcoes.size() + 1);
+        if (indice == null) {
+            return "Não entendi 🤔 Responda só com o número de uma das opções.";
+        }
+
+        // Última opção: o cliente prefere digitar outra data (continua com a mesma profissional).
+        if (indice == opcoes.size() + 1) {
+            contexto.setAlternativas(new ArrayList<>());
+            salvarContexto(conversa, contexto);
+            conversa.setEstado("AGUARDANDO_DATA");
+            return "Beleza! Para qual dia você quer marcar com " + contexto.getProfissionalNome() + "?\n" +
+                    "(pode responder *hoje*, *amanhã*, ou uma data tipo 28/07)";
+        }
+
+        BotContexto.Alternativa escolhida = opcoes.get(indice - 1);
+        LocalDate dia = LocalDate.parse(escolhida.getData());
+
+        // Pode ter mudado entre a oferta e a resposta (outro cliente agendou): rechecagem.
+        List<LocalTime> livres = slotsLivresOuVazio(escolhida.getProfissionalId(), estabelecimento.getId(),
+                dia, contexto.getServicoDuracaoMinutos());
+        if (livres.isEmpty()) {
+            contexto.setProfissionalId(escolhida.getProfissionalId());
+            contexto.setProfissionalNome(escolhida.getProfissionalNome());
+            return oferecerAlternativas(estabelecimento, conversa, contexto, dia);
+        }
+
+        contexto.setProfissionalId(escolhida.getProfissionalId());
+        contexto.setProfissionalNome(escolhida.getProfissionalNome());
+        return mostrarHorariosDoDia(conversa, contexto, dia, livres);
     }
 
     // Aceita "hoje", "amanha"/"amanhã", ou uma data no formato dd/MM ou dd/MM/yyyy.

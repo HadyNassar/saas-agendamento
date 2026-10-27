@@ -59,7 +59,32 @@ public class BotContexto {
     // Campo separado do de reagendamento para não misturar os dois fluxos.
     private List<Long> agendamentosParaCancelarIds = new ArrayList<>();
 
+    // Opções oferecidas quando o dia pedido está sem vaga (ver
+    // BotAgendamentoService.oferecerAlternativas): mesma profissional em outro
+    // dia e/ou outras profissionais do mesmo serviço com vaga antes.
+    private List<Alternativa> alternativas = new ArrayList<>();
+
     public BotContexto() {}
+
+    /** Uma sugestão de "profissional + primeiro dia com vaga". Serializada em JSON junto do contexto. */
+    public static class Alternativa {
+        private Long profissionalId;
+        private String profissionalNome;
+        private String data; // ISO yyyy-MM-dd
+
+        public Alternativa() {}
+        public Alternativa(Long profissionalId, String profissionalNome, String data) {
+            this.profissionalId = profissionalId;
+            this.profissionalNome = profissionalNome;
+            this.data = data;
+        }
+        public Long getProfissionalId() { return profissionalId; }
+        public String getProfissionalNome() { return profissionalNome; }
+        public String getData() { return data; }
+        public void setProfissionalId(Long profissionalId) { this.profissionalId = profissionalId; }
+        public void setProfissionalNome(String profissionalNome) { this.profissionalNome = profissionalNome; }
+        public void setData(String data) { this.data = data; }
+    }
 
     // GETTERS
     public List<Long> getServicoIds() { return servicoIds; }
@@ -78,6 +103,7 @@ public class BotContexto {
     public Long getReagendamentoProfissionalId() { return reagendamentoProfissionalId; }
     public Integer getReagendamentoServicoDuracaoMinutos() { return reagendamentoServicoDuracaoMinutos; }
     public List<Long> getAgendamentosParaCancelarIds() { return agendamentosParaCancelarIds; }
+    public List<Alternativa> getAlternativas() { return alternativas; }
 
     // SETTERS
     public void setServicoIds(List<Long> servicoIds) { this.servicoIds = servicoIds; }
@@ -96,4 +122,5 @@ public class BotContexto {
     public void setReagendamentoProfissionalId(Long reagendamentoProfissionalId) { this.reagendamentoProfissionalId = reagendamentoProfissionalId; }
     public void setReagendamentoServicoDuracaoMinutos(Integer reagendamentoServicoDuracaoMinutos) { this.reagendamentoServicoDuracaoMinutos = reagendamentoServicoDuracaoMinutos; }
     public void setAgendamentosParaCancelarIds(List<Long> agendamentosParaCancelarIds) { this.agendamentosParaCancelarIds = agendamentosParaCancelarIds; }
+    public void setAlternativas(List<Alternativa> alternativas) { this.alternativas = alternativas; }
 }
