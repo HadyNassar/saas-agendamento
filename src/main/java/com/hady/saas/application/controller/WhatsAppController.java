@@ -72,6 +72,52 @@ public class WhatsAppController {
         }
     }
 
+    @PostMapping("/conectar-codigo")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<Map<String, Object>> conectarCodigo(Authentication auth,
+                                                              @RequestBody Map<String, String> body) {
+        String telefone = body.getOrDefault("telefone", "").replaceAll("\\D", "");
+        if (telefone.length() < 10) {
+            return ResponseEntity.badRequest().body(Map.of("erro", "Número de telefone inválido."));
+        }
+
+        Estabelecimento est = getEstab(auth);
+        String instanceName = "agendara-" + est.getSlug();
+
+        try {
+            boolean precisaCriar = est.getEvolutionInstanceName() == null
+                    || !evolutionApiClient.instanciaExiste(instanceName);
+
+            if (precisaCriar) {
+                evolutionApiClient.criarInstancia(instanceName);
+                est.setEvolutionInstanceName(instanceName);
+                est.setWhatsappConectado(false);
+                estabelecimentoRepository.save(est);
+            } else {
+                evolutionApiClient.configurarWebhook(instanceName);
+            }
+
+            String pairingCode;
+            try {
+                pairingCode = evolutionApiClient.buscarPairingCode(instanceName, telefone);
+            } catch (Exception primeiraTentativa) {
+                // Se a instância já tinha gerado um QR antes, a Evolution às vezes
+                // não devolve o pairingCode. Recriar a instância "zera" o estado.
+                evolutionApiClient.deletarInstancia(instanceName);
+                evolutionApiClient.criarInstancia(instanceName);
+                est.setEvolutionInstanceName(instanceName);
+                est.setWhatsappConectado(false);
+                estabelecimentoRepository.save(est);
+                pairingCode = evolutionApiClient.buscarPairingCode(instanceName, telefone);
+            }
+
+            return ResponseEntity.ok(Map.of("pairingCode", pairingCode));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("erro", "Erro ao gerar código: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/qrcode")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<Map<String, Object>> qrcode(Authentication auth) {

@@ -210,6 +210,28 @@ public class EvolutionApiClient {
         return null;
     }
 
+    /**
+     * Gera o código de pareamento (8 caracteres) para conectar sem QR Code.
+     * Evolution v2: GET /instance/connect/{instance}?number=55DDDNUMERO
+     * Resposta: { "pairingCode": "WZYEH1YH", "code": "...", "count": 1 }
+     */
+    public String buscarPairingCode(String instanceName, String telefone) {
+        String numero = telefone.replaceAll("\\D", "");
+        if (!numero.startsWith("55")) numero = "55" + numero;
+
+        String url = baseUrl + "/instance/connect/" + instanceName + "?number=" + numero;
+        ResponseEntity<Map> response = restTemplate.exchange(
+                url, HttpMethod.GET, new HttpEntity<>(headers()), Map.class
+        );
+        Map<String, Object> body = response.getBody();
+        if (body == null) throw new RuntimeException("Resposta vazia da Evolution API");
+
+        Object code = body.get("pairingCode");
+        if (code instanceof String s && !s.isBlank()) return s;
+
+        throw new RuntimeException("A Evolution não retornou o código de pareamento");
+    }
+
     public boolean verificarConexao(String instanceName) {
         try {
             String url = baseUrl + "/instance/connectionState/" + instanceName;
