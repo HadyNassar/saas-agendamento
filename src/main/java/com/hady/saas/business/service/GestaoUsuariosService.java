@@ -8,6 +8,7 @@ import com.hady.saas.domain.enums.TipoEstabelecimento;
 import com.hady.saas.infrastructure.repository.EstabelecimentoRepository;
 import com.hady.saas.infrastructure.repository.UsuarioRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,15 +24,21 @@ public class GestaoUsuariosService {
     private final UsuarioRepository usuarioRepository;
     private final GeocodingService geocodingService;
     private final JdbcTemplate jdbcTemplate;
+    private final PasswordEncoder passwordEncoder;
+    private final NotasAuditoriaService notasAuditoriaService;
 
     public GestaoUsuariosService(EstabelecimentoRepository estabelecimentoRepository,
                                  UsuarioRepository usuarioRepository,
                                  GeocodingService geocodingService,
-                                 JdbcTemplate jdbcTemplate) {
+                                 JdbcTemplate jdbcTemplate,
+                                 PasswordEncoder passwordEncoder,
+                                 NotasAuditoriaService notasAuditoriaService) {
         this.estabelecimentoRepository = estabelecimentoRepository;
         this.usuarioRepository = usuarioRepository;
         this.geocodingService = geocodingService;
         this.jdbcTemplate = jdbcTemplate;
+        this.passwordEncoder = passwordEncoder;
+        this.notasAuditoriaService = notasAuditoriaService;
     }
 
     // ── Listagem com filtros ──────────────────────────────────────────
@@ -181,6 +188,38 @@ public class GestaoUsuariosService {
                         u.getRole() != null ? u.getRole().name() : null
                 ))
                 .toList();
+    }
+
+    // ── Redefinição de senha pelo admin master ───────────────────────
+    // Usado quando o cliente esqueceu a senha e não consegue recuperar por e-mail.
+    @Transactional
+    public void redefinirSenhaUsuario(Long estabelecimentoId, Long usuarioId,
+                                      String novaSenha, String adminEmail) {
+        if (novaSenha == null || novaSenha.length() < 8) {
+            throw new RuntimeException("A senha deve ter no mínimo 8 caracteres.");
+        }
+
+        var usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado."));
+
+        // Garante que o usuário pertence ao estabelecimento da URL
+        if (usuario.getEstabelecimento() == null
+                || !usuario.getEstabelecimento().getId().equals(estabelecimentoId)) {
+            throw new RuntimeException("Usuário não pertence a este estabelecimento.");
+        }
+
+        usuario.setSenha(passwordEncoder.encode(novaSenha));
+        // Invalida todas as sessões/JWTs emitidos antes deste instante
+        usuario.setSenhaAtualizadaEm(java.time.Instant.now());
+        usuarioRepository.save(usuario);
+
+        // Auditoria — nunca registra a senha em si
+        notasAuditoriaService.registrar(
+                adminEmail,
+                "REDEFINIR_SENHA_USUARIO",
+                estabelecimentoId,
+                "Redefiniu a senha do usuário " + usuario.getEmail() + " (role " + usuario.getRole() + ")"
+        );
     }
 
     // ── Ações administrativas rápidas ────────────────────────────────

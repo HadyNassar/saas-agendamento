@@ -3,10 +3,12 @@ package com.hady.saas.application.controller;
 import com.hady.saas.application.dto.EditarEstabelecimentoAdminDTO;
 import com.hady.saas.application.dto.EstabelecimentoAdminDTO;
 import com.hady.saas.application.dto.EstabelecimentoListaAdminDTO;
+import com.hady.saas.application.dto.RedefinirSenhaAdminDTO;
 import com.hady.saas.application.dto.UsuarioAdminDTO;
 import com.hady.saas.business.service.GestaoUsuariosService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -48,6 +50,18 @@ public class GestaoUsuariosController {
     @GetMapping("/{id}/usuarios")
     public List<UsuarioAdminDTO> listarUsuarios(@PathVariable Long id) {
         return gestaoUsuariosService.listarUsuarios(id);
+    }
+
+    // Define uma nova senha para um usuário do estabelecimento (cliente que
+    // esqueceu a senha). Invalida as sessões antigas e registra auditoria.
+    // POST /admin-master/estabelecimentos/{id}/usuarios/{usuarioId}/senha
+    @PostMapping("/{id}/usuarios/{usuarioId}/senha")
+    public ResponseEntity<String> redefinirSenha(@PathVariable Long id,
+                                                 @PathVariable Long usuarioId,
+                                                 @Valid @RequestBody RedefinirSenhaAdminDTO dto,
+                                                 Authentication auth) {
+        gestaoUsuariosService.redefinirSenhaUsuario(id, usuarioId, dto.getNovaSenha(), auth.getName());
+        return ResponseEntity.ok("Senha redefinida com sucesso.");
     }
 
     // Edição administrativa — qualquer campo, incluindo endereço completo.
